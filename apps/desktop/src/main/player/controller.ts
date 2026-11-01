@@ -68,8 +68,13 @@ export class PlaybackController {
 
   attach(guest: WebContents) {
     this.guest = guest;
-    guest.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
-      if (mainFrame) {
+    guest.on('did-start-navigation', (_event, url, inPlace, mainFrame) => {
+      const differentVideo =
+        isBilibiliUrl(url) &&
+        this.snapshot.url &&
+        playbackIdentity(url) !== playbackIdentity(this.snapshot.url);
+
+      if (mainFrame && (!inPlace || differentVideo)) {
         this.fullscreenPending = true;
       }
 
@@ -101,7 +106,7 @@ export class PlaybackController {
     const guest = this.getGuest();
     const argument = JSON.stringify(command);
     // 参数单独序列化，播放器逻辑始终来自参与类型检查的注入模块。
-    await guest.executeJavaScript(
+    return await guest.executeJavaScript(
       `window.__bplaylistCommand = ${argument};\n${commandScript}`,
       true,
     );
@@ -422,11 +427,13 @@ export class PlaybackController {
       return;
     }
 
-    this.fullscreenPending = false;
-
-    if (this.autoFullscreen && !this.snapshot.webFullscreen) {
-      await this.execute({ action: 'fullscreen' });
+    if (!this.autoFullscreen || this.snapshot.webFullscreen) {
+      this.fullscreenPending = false;
+      return;
     }
+
+    const applied = await this.execute({ action: 'fullscreen' });
+    this.fullscreenPending = applied === false;
   }
 
   private readyGuest() {

@@ -21,6 +21,7 @@ class Guest extends EventEmitter {
     url: videoUrl('BV1GJ411x7h7'),
   };
   commands: { action: string; position?: number }[] = [];
+  fullscreenReady = true;
   isDestroyed = () => false;
   isLoadingMainFrame = () => false;
   getURL = () => this.snapshot.url;
@@ -51,7 +52,12 @@ class Guest extends EventEmitter {
     }
 
     if (input.action === 'fullscreen') {
+      if (!this.fullscreenReady) {
+        return false;
+      }
+
       this.snapshot.webFullscreen = true;
+      return true;
     }
   }
 }
@@ -119,7 +125,33 @@ describe('主进程顺序播放', () => {
     expect(guest.snapshot.webFullscreen).toBe(false);
     guest.emit('did-start-navigation', {}, guest.getURL(), true, true);
     await vi.advanceTimersByTimeAsync(500);
+    expect(guest.snapshot.webFullscreen).toBe(false);
+    guest.emit(
+      'did-start-navigation',
+      {},
+      `${guest.getURL()}&fullscreen_change=1#player`,
+      true,
+      true,
+    );
+    await vi.advanceTimersByTimeAsync(500);
+    expect(guest.snapshot.webFullscreen).toBe(false);
+    guest.emit('did-start-navigation', {}, videoUrl('BV1GJ411x7h7', 2), true, true);
+    await guest.loadURL(videoUrl('BV1GJ411x7h7', 2));
+    await vi.advanceTimersByTimeAsync(500);
     expect(guest.snapshot.webFullscreen).toBe(true);
+  });
+
+  it('视频先就绪、网页全屏按钮后出现时，等待按钮后只触发一次', async () => {
+    guest.fullscreenReady = false;
+    await player.play('a');
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(guest.snapshot.webFullscreen).toBe(false);
+    guest.fullscreenReady = true;
+    await vi.advanceTimersByTimeAsync(500);
+    expect(guest.snapshot.webFullscreen).toBe(true);
+    guest.snapshot.webFullscreen = false;
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(guest.snapshot.webFullscreen).toBe(false);
   });
 
   it('片段结束后只推进一次，同一视频的下一片段从起点播放', async () => {

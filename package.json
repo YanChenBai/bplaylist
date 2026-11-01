@@ -18,6 +18,7 @@
     "prepare": "vp config",
     "icons": "vpx scripts/generate-icons.ts",
     "test:live": "vpx scripts/live-smoke.ts",
+    "test:fullscreen": "vpx scripts/fullscreen-smoke.ts",
     "test:sync": "vpx scripts/sync-smoke.ts"
   },
   "devDependencies": {

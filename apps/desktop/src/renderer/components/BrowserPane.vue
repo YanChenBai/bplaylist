@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { WebviewTag } from 'electron';
-import { onMounted, useTemplateRef } from 'vue';
+import { onMounted, ref, useTemplateRef } from 'vue';
 import { toast } from 'vue-sonner';
 
 const emit = defineEmits<{ location: [url: string]; loading: [loading: boolean] }>();
 const webview = useTemplateRef<WebviewTag>('webview');
+const screenFullscreen = ref(false);
 
 onMounted(() => {
   const guest = webview.value;
@@ -12,6 +13,13 @@ onMounted(() => {
   if (!guest) {
     return;
   }
+
+  guest.addEventListener('enter-html-full-screen', () => {
+    screenFullscreen.value = true;
+  });
+  guest.addEventListener('leave-html-full-screen', () => {
+    screenFullscreen.value = false;
+  });
 
   guest.addEventListener('did-start-loading', () => {
     emit('loading', true);
@@ -52,6 +60,7 @@ defineExpose({
       partition="persist:bilibili"
       allowpopups
       class="flex min-h-0 w-full flex-1"
+      :class="screenFullscreen ? 'fixed! inset-0! z-50! h-screen! w-screen! flex-none!' : ''"
     />
   </section>
 </template>

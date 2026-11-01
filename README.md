@@ -108,6 +108,7 @@ vp test run
 vp run typecheck
 vp run build
 vpx scripts/smoke.ts
+vpx scripts/fullscreen-smoke.ts
 vpx scripts/sync-smoke.ts
 ```
 

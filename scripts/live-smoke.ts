@@ -98,6 +98,55 @@ try {
     .poll(async () => (await read()).snapshot?.parts.length ?? 0, { timeout: 20000 })
     .toBeGreaterThan(1);
   process.stdout.write(`Live page: web fullscreen and episode metadata verified.\n`);
+  await app.evaluate(async ({ webContents }) => {
+    const guest = webContents
+      .getAllWebContents()
+      .find(contents => contents.getType() === 'webview')!;
+
+    await guest.executeJavaScript(
+      "document.querySelector('.bpx-player-ctrl-web, .bilibili-player-video-web-fullscreen').click()",
+      true,
+    );
+  });
+  await page.waitForTimeout(1500);
+  await expect.poll(async () => (await read()).snapshot?.webFullscreen).toBe(false);
+  await app.evaluate(async ({ webContents }) => {
+    const guest = webContents
+      .getAllWebContents()
+      .find(contents => contents.getType() === 'webview')!;
+
+    await guest.executeJavaScript(
+      "document.querySelector('.bpx-player-ctrl-full, .bilibili-player-video-btn-fullscreen').click()",
+      true,
+    );
+  });
+  await expect
+    .poll(() =>
+      app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFullScreen()),
+    )
+    .toBe(true);
+  await expect
+    .poll(() => page.locator('webview').evaluate(element => getComputedStyle(element).position))
+    .toBe('fixed');
+  await app.evaluate(({ webContents }) => {
+    const guest = webContents
+      .getAllWebContents()
+      .find(contents => contents.getType() === 'webview')!;
+
+    guest.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    guest.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+  });
+  await expect
+    .poll(() =>
+      app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFullScreen()),
+    )
+    .toBe(false);
+  await expect
+    .poll(() => page.locator('webview').evaluate(element => getComputedStyle(element).position))
+    .not.toBe('fixed');
+  process.stdout.write(
+    'Live page: manual web fullscreen exit and native screen fullscreen verified.\n',
+  );
   await page.getByRole('button', { name: '添加视频', exact: true }).click();
   await page.getByLabel('视频链接 / BV 号').fill('https://www.bilibili.com/bangumi/play/ep6613853');
   await page.getByRole('button', { name: '从链接读取视频 / 分集信息' }).click();

@@ -69,7 +69,7 @@ async function start() {
 
     const registerShortcuts = (contents: WebContents) => {
       contents.on('before-input-event', (event, input) => {
-        if (input.type !== 'keyDown' || input.isAutoRepeat) {
+        if (input.type !== 'keyDown' || input.isAutoRepeat || window.isFullScreen()) {
           return;
         }
 

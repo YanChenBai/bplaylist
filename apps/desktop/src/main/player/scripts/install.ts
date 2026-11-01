@@ -5,7 +5,7 @@ interface PageBridge {
   command(command: {
     action: 'play' | 'pause' | 'seek' | 'fullscreen';
     position?: number;
-  }): Promise<void>;
+  }): Promise<boolean | void>;
 }
 
 interface BiliPage extends Window {
@@ -131,6 +131,23 @@ export default function install() {
       ),
     );
 
+  const enterWebFullscreen = () => {
+    if (document.fullscreenElement || fullscreen()) {
+      return true;
+    }
+
+    const button = document.querySelector<HTMLElement>(
+      '.bpx-player-ctrl-web, .bilibili-player-video-web-fullscreen',
+    );
+
+    if (!button || button.matches(':disabled, [aria-disabled="true"]')) {
+      return false;
+    }
+
+    button.click();
+    return true;
+  };
+
   const videoParts = () => {
     const state = page.__INITIAL_STATE__;
     const data = state?.videoData;
@@ -205,15 +222,7 @@ export default function install() {
       }
 
       if (command.action === 'fullscreen') {
-        if (!fullscreen()) {
-          document
-            .querySelector<HTMLElement>(
-              '.bpx-player-ctrl-web, .bilibili-player-video-web-fullscreen',
-            )
-            ?.click();
-        }
-
-        return;
+        return enterWebFullscreen();
       }
 
       if (command.action === 'seek') {

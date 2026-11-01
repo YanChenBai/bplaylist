@@ -1,13 +1,13 @@
 <script setup lang="ts">
+import ActionButton from '@bplaylist/ui/ui/ActionButton.vue';
+import ModalDialog from '@bplaylist/ui/ui/ModalDialog.vue';
+import TextField from '@bplaylist/ui/ui/TextField.vue';
 import { Cloud, Download, RefreshCw, Upload } from '@lucide/vue';
 import { onMounted, ref, useId } from 'vue';
 import { toast } from 'vue-sonner';
 
 import { rpc } from '../rpc.ts';
 import { useWorkspace } from '../stores/workspace.ts';
-import ActionButton from './ui/ActionButton.vue';
-import ModalDialog from './ui/ModalDialog.vue';
-import TextField from './ui/TextField.vue';
 
 const formId = useId();
 const emit = defineEmits<{ close: [] }>();

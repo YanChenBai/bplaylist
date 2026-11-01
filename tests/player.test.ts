@@ -108,6 +108,72 @@ describe('主进程顺序播放', () => {
     vi.useRealTimers();
   });
 
+  it('浏览和编辑其他列表不暂停原视频，原列表继续自动播放', async () => {
+    const originalId = player.playlist.id;
+    const target = createPlaylist('另一个列表');
+    library.save(target);
+    await player.play('a');
+    await vi.advanceTimersByTimeAsync(600);
+    const pauses = guest.commands.filter(command => command.action === 'pause').length;
+    player.select(target.id);
+    expect(player.state().playlist.id).toBe(target.id);
+    expect(player.state().playingPlaylistId).toBe(originalId);
+    expect(player.running).toBe(true);
+    const edited = structuredClone(player.state().playlist);
+    edited.title = '只修改浏览中的列表';
+    await player.editSelected(edited, player.state().revision);
+    expect(library.list().find(item => item.id === target.id)?.title).toBe(edited.title);
+    expect(guest.commands.filter(command => command.action === 'pause')).toHaveLength(pauses);
+    guest.snapshot.position = 20;
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(player.playlist.id).toBe(originalId);
+    expect(player.playlist.activeItemId).toBe('b');
+    expect(player.playlist.progress.a.completed).toBe(true);
+    expect(player.state().playlist.id).toBe(target.id);
+    expect(player.running).toBe(true);
+  });
+
+  it('只有点击浏览列表的有效条目才切换播放，保留原列表进度', async () => {
+    const originalId = player.playlist.id;
+    const target = createPlaylist('待播放');
+    const source = player.playlist.nodes[0]!;
+
+    if (source.kind !== 'video') {
+      throw new Error('fixture');
+    }
+
+    target.nodes = [{ ...source, id: 'c', url: videoUrl('BV1GJ411x7h7', 2), start: 5, end: 8 }];
+    library.save(target);
+    await player.play('a');
+    await vi.advanceTimersByTimeAsync(600);
+    guest.snapshot.position = 15;
+    await vi.advanceTimersByTimeAsync(500);
+    player.select(target.id);
+    await expect(player.playSelected('missing')).rejects.toThrow('找不到播放条目');
+    expect(player.playlist.id).toBe(originalId);
+    expect(guest.snapshot.paused).toBe(false);
+    await player.playSelected('c');
+    await vi.advanceTimersByTimeAsync(600);
+    expect(player.playlist.id).toBe(target.id);
+    expect(player.playlist.activeItemId).toBe('c');
+    expect(guest.snapshot.position).toBe(5);
+    expect(library.list().find(item => item.id === originalId)?.progress.a.position).toBe(15);
+  });
+
+  it('重启后分别恢复浏览列表和播放列表的身份', async () => {
+    const originalId = player.playlist.id;
+    const target = createPlaylist('浏览中');
+    library.save(target);
+    await player.play('a');
+    await vi.advanceTimersByTimeAsync(600);
+    player.select(target.id);
+    player.dispose();
+    player = new PlaybackController(library);
+    player.attach(guest as unknown as WebContents);
+    expect(player.playlist.id).toBe(originalId);
+    expect(player.state().playlist.id).toBe(target.id);
+  });
+
   it('网页全屏每次进入只触发一次，手动退出后不反复恢复', async () => {
     await player.play('a');
     await vi.advanceTimersByTimeAsync(1100);

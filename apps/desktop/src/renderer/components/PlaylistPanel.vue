@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { movePlaylistNode } from '@bplaylist/shared';
 import type { PlaylistNode, DropPosition } from '@bplaylist/shared';
+import ActionButton from '@bplaylist/ui/ui/ActionButton.vue';
+import ModalDialog from '@bplaylist/ui/ui/ModalDialog.vue';
+import SelectField from '@bplaylist/ui/ui/SelectField.vue';
+import TextField from '@bplaylist/ui/ui/TextField.vue';
 import { FolderPlus, ListVideo, SkipBack, SkipForward, Plus } from '@lucide/vue';
 import { ref, useId } from 'vue';
 
@@ -10,10 +14,6 @@ import ItemContextMenu from './ItemContextMenu.vue';
 import ItemEditor from './ItemEditor.vue';
 import PlaylistSettings from './PlaylistSettings.vue';
 import PlaylistTree from './PlaylistTree.vue';
-import ActionButton from './ui/ActionButton.vue';
-import ModalDialog from './ui/ModalDialog.vue';
-import SelectField from './ui/SelectField.vue';
-import TextField from './ui/TextField.vue';
 
 const workspace = useWorkspace();
 const api = { rpc };

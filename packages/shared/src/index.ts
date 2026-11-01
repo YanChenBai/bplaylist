@@ -326,6 +326,9 @@ export const emptySnapshot: PlayerSnapshot = {
 };
 
 export interface PlaybackState {
+  playingPlaylistId: string;
+  playingItemId: string | null;
+  revision: number;
   playlist: Playlist;
   snapshot: PlayerSnapshot;
   running: boolean;

@@ -51,6 +51,17 @@ async function pressEscape() {
   });
 }
 
+// Playwright injects renderer input without moving the OS cursor used by the fallback.
+async function setNativePointer(x: number, y: number) {
+  await app.evaluate(
+    ({ BrowserWindow, screen }, { x, y }) => {
+      const bounds = BrowserWindow.getAllWindows()[0]!.getContentBounds();
+      screen.getCursorScreenPoint = () => ({ x: bounds.x + x, y: bounds.y + y });
+    },
+    { x, y },
+  );
+}
+
 try {
   const page = await app.firstWindow();
   await page.getByRole('main', { name: 'BPlaylist 工作区', exact: true }).waitFor();
@@ -134,7 +145,26 @@ try {
     .not.toBe('fixed');
 
   await page.getByRole('button', { name: '进入沉浸模式', exact: true }).click();
+  await setNativePointer(200, 200);
+  await page.mouse.move(200, 200);
   await expect(page.locator('main > header')).toBeHidden();
+  const width = await page.evaluate(() => innerWidth);
+
+  for (const x of [2, width / 2, width - 2]) {
+    // Reveal through the main-process fallback, without a renderer pointer event.
+    await setNativePointer(x, 1);
+    await expect(page.locator('main > header')).toBeVisible();
+
+    for (const y of [18, 45, 53, 20, 1]) {
+      await setNativePointer(x, y);
+      await page.waitForTimeout(350);
+      await expect(page.locator('main > header')).toBeVisible();
+    }
+
+    await setNativePointer(x, 120);
+    await expect(page.locator('main > header')).toBeHidden();
+  }
+
   await readGuest("document.querySelector('.bpx-player-container').requestFullscreen()");
   await expect.poll(() => readGuest('Boolean(document.fullscreenElement)')).toBe(true);
   await pressEscape();
@@ -145,7 +175,7 @@ try {
   await readGuest("history.pushState({}, '', '?p=1')");
   await expect.poll(() => readGuest('window.__bplaylist.read().webFullscreen')).toBe(true);
   process.stdout.write(
-    'Fullscreen smoke passed: manual exit, URL changes, screen fullscreen layout, immersive Escape, and episode switch.\n',
+    'Fullscreen smoke passed: manual exit, URL changes, screen fullscreen layout, immersive header edges, immersive Escape, and episode switch.\n',
   );
 } finally {
   await app.close();

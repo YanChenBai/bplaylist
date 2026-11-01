@@ -22,6 +22,10 @@ export function openLibrary(path: string) {
         .all()
         .map(row => playlistSchema.parse(JSON.parse(row.document)));
     },
+    get(id: string): Playlist | undefined {
+      const row = db.select().from(playlists).where(eq(playlists.id, id)).get();
+      return row ? playlistSchema.parse(JSON.parse(row.document)) : undefined;
+    },
     save(playlist: Playlist) {
       const value = playlistSchema.parse(playlist);
       db.insert(playlists)

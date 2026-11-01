@@ -6,6 +6,8 @@ import { isBilibiliUrl } from '@bplaylist/shared';
 import { app, BrowserWindow, dialog } from 'electron';
 import type { WebContents } from 'electron';
 
+import { BrowserServer } from './app/browser-server.ts';
+import { createBrowserService } from './app/browser-service.ts';
 import { registerRpcConnections } from './app/rpc-server.ts';
 import { WindowChrome } from './app/window-chrome.ts';
 import { PlaybackController } from './player/controller.ts';
@@ -31,13 +33,17 @@ async function start() {
   const library = openLibrary(join(app.getPath('userData'), 'bplaylist.sqlite'));
   const player = new PlaybackController(library);
   const remote = new RemoteLibrary(library);
+  const browser = new BrowserServer(library, createBrowserService(library, player));
+  await browser.start(
+    process.env.BPLAYLIST_BRIDGE_PORT ? Number(process.env.BPLAYLIST_BRIDGE_PORT) : undefined,
+  );
   const base = fileURLToPath(new URL('.', import.meta.url));
   const rendererFile = join(base, '../renderer/index.html');
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   const chrome = new WindowChrome(() => mainWindow);
 
   const rpc = registerRpcConnections(
-    createRouter(library, player, remote, () => mainWindow, chrome),
+    createRouter(library, player, remote, () => mainWindow, chrome, browser),
     () => mainWindow,
     rendererUrl,
     rendererFile,
@@ -138,6 +144,7 @@ async function start() {
   }
 
   dispose = () => {
+    void browser.close();
     rpc.dispose();
     player.dispose();
     library.close();

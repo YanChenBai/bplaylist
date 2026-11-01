@@ -1,0 +1,31 @@
+{
+  "name": "@bplaylist/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vpx ../../scripts/generate-icons.ts && wxt",
+    "build": "vpx ../../scripts/generate-icons.ts && wxt build",
+    "zip": "vpx ../../scripts/generate-icons.ts && wxt zip",
+    "typecheck": "wxt prepare && vue-tsc --noEmit",
+    "postinstall": "wxt prepare"
+  },
+  "dependencies": {
+    "@bplaylist/bridge": "workspace:*",
+    "@bplaylist/shared": "workspace:*",
+    "@bplaylist/ui": "workspace:*",
+    "@lucide/vue": "^1.61.0",
+    "@orpc/client": "^1.16.1",
+    "vue": "3.6.0-rc.13",
+    "vue-sonner": "^2.0.9",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@wxt-dev/module-vue": "^1.0.3",
+    "tailwindcss": "4.3.3",
+    "typescript": "npm:typescript-native-bridge@6.0.3-bridge.19.tsgo.7.0.2",
+    "vue-tsc": "3.3.13",
+    "wxt": "^0.21.5"
+  }
+}

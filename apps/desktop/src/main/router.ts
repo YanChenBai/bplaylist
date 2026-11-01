@@ -13,6 +13,7 @@ import { dialog } from 'electron';
 import type { BrowserWindow } from 'electron';
 import { z } from 'zod';
 
+import type { BrowserServer } from './app/browser-server.ts';
 import type { WindowChrome } from './app/window-chrome.ts';
 import type { PlaybackController } from './player/controller.ts';
 import type { RemoteLibrary } from './remote.ts';
@@ -38,8 +39,11 @@ export function createRouter(
   remote: RemoteLibrary,
   getWindow: () => BrowserWindow | null,
   chrome: WindowChrome,
+  browser: BrowserServer,
 ) {
   return {
+    browserSettings: procedure.handler(() => browser.settings()),
+    resetBrowserToken: procedure.handler(() => browser.resetToken()),
     resolveVideo: procedure
       .input(z.string().transform(value => videoUrl(value)))
       .handler(({ input }) => player.resolveVideo(input)),
@@ -60,18 +64,20 @@ export function createRouter(
       return player.state();
     }),
     select: procedure.input(z.string()).handler(async ({ input }) => {
-      await player.select(input);
+      player.select(input);
       return player.state();
     }),
-    edit: procedure.input(playlistSchema).handler(({ input }) => player.edit(input)),
+    edit: procedure
+      .input(z.object({ playlist: playlistSchema, revision: z.number().int().nonnegative() }))
+      .handler(({ input }) => player.editSelected(input.playlist, input.revision)),
     play: procedure
       .input(z.object({ id: z.string(), resume: z.boolean().default(true) }))
       .handler(async ({ input }) => {
-        await player.play(input.id, input.resume);
+        await player.playSelected(input.id, input.resume);
         return player.state();
       }),
     step: procedure.input(z.union([z.literal(-1), z.literal(1)])).handler(async ({ input }) => {
-      await player.step(input);
+      await player.stepSelected(input);
       return player.state();
     }),
     control: procedure
@@ -127,7 +133,7 @@ export function createRouter(
 
       const result = await dialog.showSaveDialog(window, {
         title: '导出播放列表（包含进度）',
-        defaultPath: `${player.playlist.title.replace(/[<>:"/\\|?*]/g, '_')}.json`,
+        defaultPath: `${player.selectedPlaylist.title.replace(/[<>:"/\\|?*]/g, '_')}.json`,
         filters: [{ name: 'BPlaylist JSON', extensions: ['json'] }],
       });
 
@@ -138,7 +144,11 @@ export function createRouter(
       player.persist();
       await writeFile(
         result.filePath,
-        JSON.stringify({ format: 'bplaylist', version: 1, playlist: player.playlist }, null, 2),
+        JSON.stringify(
+          { format: 'bplaylist', version: 1, playlist: player.selectedPlaylist },
+          null,
+          2,
+        ),
         'utf8',
       );
       return true;
@@ -151,7 +161,7 @@ export function createRouter(
       list: procedure.handler(() => remote.list()),
       push: procedure.handler(() => {
         player.persist();
-        return remote.push(player.playlist);
+        return remote.push(player.selectedPlaylist);
       }),
       pull: procedure.input(z.string().min(1).max(100)).handler(async ({ input }) => {
         const document = await remote.pull(input);

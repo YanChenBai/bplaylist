@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionButton from '@bplaylist/ui/ui/ActionButton.vue';
 import { Check, Settings2, Download, Upload, Pencil } from '@lucide/vue';
 import { onClickOutside, usePreferredReducedMotion } from '@vueuse/core';
 import { Motion } from 'motion-v';
@@ -6,7 +7,6 @@ import { nextTick, shallowRef, useTemplateRef } from 'vue';
 
 import { rpc } from '../rpc.ts';
 import { useWorkspace } from '../stores/workspace.ts';
-import ActionButton from './ui/ActionButton.vue';
 
 const emit = defineEmits<{ rename: [] }>();
 const workspace = useWorkspace();
@@ -108,7 +108,7 @@ async function toggleFullscreen() {
           type="button"
           role="menuitem"
           :disabled="workspace.busy"
-          class="text-foreground flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] outline-none hover:bg-white/5 focus:bg-white/8 disabled:opacity-40"
+          class="text-foreground hover:bg-foreground/5 focus:bg-foreground/8 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] outline-none disabled:opacity-40"
           @click="importFile"
         >
           <Download :size="13" />导入播放列表
@@ -117,7 +117,7 @@ async function toggleFullscreen() {
           type="button"
           role="menuitem"
           :disabled="workspace.busy"
-          class="text-foreground flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] outline-none hover:bg-white/5 focus:bg-white/8 disabled:opacity-40"
+          class="text-foreground hover:bg-foreground/5 focus:bg-foreground/8 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] outline-none disabled:opacity-40"
           @click="exportFile"
         >
           <Upload :size="13" />导出播放列表
@@ -126,7 +126,7 @@ async function toggleFullscreen() {
           type="button"
           role="menuitem"
           :disabled="workspace.busy"
-          class="text-foreground flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] outline-none hover:bg-white/5 focus:bg-white/8 disabled:opacity-40"
+          class="text-foreground hover:bg-foreground/5 focus:bg-foreground/8 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] outline-none disabled:opacity-40"
           @click="rename"
         >
           <Pencil :size="13" />重命名播放列表
@@ -137,7 +137,7 @@ async function toggleFullscreen() {
           role="menuitemcheckbox"
           :aria-checked="workspace.state?.autoFullscreen ?? false"
           :disabled="workspace.busy"
-          class="text-foreground flex w-full items-center justify-between gap-3 rounded px-3 py-2 text-left text-[11px] transition-colors duration-80 outline-none hover:bg-white/5 focus:bg-white/8 disabled:opacity-40"
+          class="text-foreground hover:bg-foreground/5 focus:bg-foreground/8 flex w-full items-center justify-between gap-3 rounded px-3 py-2 text-left text-[11px] transition-colors duration-80 outline-none disabled:opacity-40"
           @click="toggleFullscreen"
         >
           <span>自动网页全屏</span

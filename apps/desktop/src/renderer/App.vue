@@ -1,24 +1,29 @@
 <script setup lang="ts">
+import { captureActivation } from '@bplaylist/ui/interaction';
+import { theme } from '@bplaylist/ui/theme';
+import ThemeToaster from '@bplaylist/ui/ThemeToaster.vue';
+import ActionButton from '@bplaylist/ui/ui/ActionButton.vue';
 import {
   ArrowLeft,
   ArrowRight,
   Cloud,
   Globe,
   Maximize,
+  Plug,
+  Sun,
+  Moon,
   PanelRightClose,
   PanelRightOpen,
   RefreshCw,
 } from '@lucide/vue';
 import { useIntervalFn, useLocalStorage, useTimeoutFn } from '@vueuse/core';
 import { ref, useTemplateRef, watch } from 'vue';
-import { Toaster } from 'vue-sonner';
 
+import BrowserDialog from './components/BrowserDialog.vue';
 import BrowserPane from './components/BrowserPane.vue';
 import PlaylistPanel from './components/PlaylistPanel.vue';
 import RemoteDialog from './components/RemoteDialog.vue';
-import ActionButton from './components/ui/ActionButton.vue';
 import WindowControls from './components/WindowControls.vue';
-import { activeDialog, captureActivation } from './lib/interaction.ts';
 import { rpc } from './rpc.ts';
 import { useWorkspace } from './stores/workspace.ts';
 
@@ -29,14 +34,14 @@ const browser = useTemplateRef<InstanceType<typeof BrowserPane>>('browser');
 const address = ref('https://www.bilibili.com');
 const loading = ref(true);
 const remoteOpen = ref(false);
+const browserOpen = ref(false);
 const chromeRevealed = ref(false);
 const addressFocused = ref(false);
-let guestPointer: number | undefined;
 let readingPointer = false;
 
-// Guest pointer events do not bubble through the webview into this document.
+// Native drag regions and the guest do not reliably deliver renderer pointer events.
 useIntervalFn(async () => {
-  if (!workspace.immersive || !chromeRevealed.value || readingPointer) {
+  if (!workspace.immersive || readingPointer) {
     return;
   }
 
@@ -45,11 +50,15 @@ useIntervalFn(async () => {
   try {
     const state = await rpc.windowState();
 
-    if (guestPointer !== undefined && state.guestPointer !== guestPointer) {
-      hideChrome();
+    if (!workspace.immersive) {
+      return;
     }
 
-    guestPointer = state.guestPointer;
+    if (state.pointer && state.pointer.y <= (chromeRevealed.value ? 56 : 20)) {
+      revealChrome();
+    } else if (chromeRevealed.value && !hidingChrome.value) {
+      hideChrome();
+    }
   } catch {
     // Connection failures are reported by the workspace poll.
   } finally {
@@ -57,13 +66,17 @@ useIntervalFn(async () => {
   }
 }, 100);
 
-const { start: hideChrome, stop: keepChrome } = useTimeoutFn(
+const {
+  start: hideChrome,
+  stop: keepChrome,
+  isPending: hidingChrome,
+} = useTimeoutFn(
   () => {
     if (!addressFocused.value) {
       chromeRevealed.value = false;
     }
   },
-  220,
+  300,
   { immediate: false },
 );
 
@@ -81,10 +94,6 @@ watch(
 
 function revealChrome() {
   keepChrome();
-
-  if (!chromeRevealed.value) {
-    guestPointer = undefined;
-  }
 
   chromeRevealed.value = true;
 }
@@ -128,7 +137,8 @@ function navigate() {
         /></ActionButton>
       </nav>
       <form
-        class="border-border bg-panel focus-within:border-dim focus-within:ring-border mx-2 flex max-w-[760px] min-w-0 flex-1 items-center gap-2 rounded-md border px-2.5 transition-[border-color,box-shadow] duration-100 [-webkit-app-region:no-drag] focus-within:ring-1"
+        class="border-border bg-panel focus-within:border-dim focus-within:ring-border mx-2 flex w-[260px] max-w-[760px] min-w-0 shrink items-center gap-2 rounded-md border px-2.5 transition-[width,flex-grow,border-color,box-shadow] duration-160 ease-out [-webkit-app-region:no-drag] focus-within:ring-1 motion-reduce:transition-none"
+        :class="addressFocused ? 'flex-[1_1_260px]' : 'flex-[0_1_260px]'"
         @submit.prevent="navigate"
       >
         <Globe :size="11" class="text-dim shrink-0" /><input
@@ -154,6 +164,18 @@ function navigate() {
           class="h-[39px] w-[46px] rounded-none border-0 p-0 active:scale-100"
           @click="remoteOpen = true"
           ><Cloud :size="14" /></ActionButton
+        ><ActionButton
+          aria-label="连接浏览器插件"
+          title="连接浏览器插件"
+          class="h-[39px] w-[46px] rounded-none border-0 p-0 active:scale-100"
+          @click="browserOpen = true"
+          ><Plug :size="14" /></ActionButton
+        ><ActionButton
+          :aria-label="theme === 'dark' ? '切换白色主题' : '切换黑色主题'"
+          :title="theme === 'dark' ? '切换白色主题' : '切换黑色主题'"
+          class="h-[39px] w-[46px] rounded-none border-0 p-0 active:scale-100"
+          @click="theme = theme === 'dark' ? 'light' : 'dark'"
+          ><Sun v-if="theme === 'dark'" :size="14" /><Moon v-else :size="14" /></ActionButton
         ><ActionButton
           :aria-label="collapsed ? '展开播放列表' : '折叠播放列表'"
           class="h-[39px] w-[46px] rounded-none border-0 p-0 active:scale-100"
@@ -186,32 +208,12 @@ function navigate() {
     <div
       v-if="workspace.immersive && !chromeRevealed"
       aria-hidden="true"
-      class="fixed inset-x-0 top-0 z-40 h-3"
+      class="fixed inset-x-0 top-0 z-40 h-5"
       @pointerenter="revealChrome"
+      @pointermove="revealChrome"
     />
+    <BrowserDialog v-if="browserOpen" @close="browserOpen = false" />
     <RemoteDialog v-if="remoteOpen" @close="remoteOpen = false" />
-    <Teleport :to="activeDialog ?? 'body'">
-      <Toaster
-        theme="dark"
-        position="bottom-center"
-        :offset="24"
-        :duration="4000"
-        close-button
-        :toast-options="{
-          style: {
-            background: '#1b1b1b',
-            border: '1px solid #333333',
-            color: '#d0d0d0',
-            fontFamily: 'var(--font-sans)',
-            fontSize: '12px',
-            borderRadius: '8px',
-            padding: '12px 14px',
-            gap: '10px',
-            transition: 'transform 160ms ease-out, opacity 120ms ease-out, height 160ms ease-out',
-            boxShadow: '0 8px 30px #0006',
-          },
-        }"
-      />
-    </Teleport>
+    <ThemeToaster />
   </main>
 </template>

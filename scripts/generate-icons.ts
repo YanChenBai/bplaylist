@@ -37,4 +37,15 @@ for (const [index, image] of images.entries()) {
 }
 
 await writeFile(new URL('icon.ico', directory), Buffer.concat([header, ...images]));
+const extensionDirectory = new URL('../apps/extension/public/icon/', import.meta.url);
+await mkdir(extensionDirectory, { recursive: true });
+await Promise.all(
+  [16, 32, 48, 128].map(size =>
+    sharp(source)
+      .resize(size, size)
+      .flatten({ background: '#111111' })
+      .png()
+      .toFile(fileURLToPath(new URL(`${size}.png`, extensionDirectory))),
+  ),
+);
 process.stdout.write('Generated application icons from docs/assets/logo.svg.\n');

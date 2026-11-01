@@ -6,7 +6,7 @@ export default defineConfig({
   veldora: {
     main: {
       build: {
-        externalizeDeps: { exclude: ['@bplaylist/shared'] },
+        externalizeDeps: { exclude: ['@bplaylist/shared', '@bplaylist/bridge'] },
         rolldownOptions: {
           input: './src/main/index.ts',
           output: { format: 'es', entryFileNames: 'index.js' },

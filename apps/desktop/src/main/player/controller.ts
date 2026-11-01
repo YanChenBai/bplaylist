@@ -39,6 +39,8 @@ export class PlaybackController {
   private timer: ReturnType<typeof setInterval>;
   private busy = false;
   private generation = 0;
+  private revision = 0;
+  private selectedId: string;
   private pending?: { item: VideoItem; segmentIndex: number; position: number; deadline: number };
   private segmentIndex = 0;
   private lastSave = 0;
@@ -50,6 +52,9 @@ export class PlaybackController {
     const documents = library.list();
     this.playlist =
       documents.find(doc => doc.id === library.getSetting('activePlaylist')) ?? documents[0]!;
+    this.selectedId =
+      documents.find(doc => doc.id === library.getSetting('selectedPlaylist'))?.id ??
+      this.playlist.id;
     this.autoFullscreen = library.getSetting('autoFullscreen') !== 'false';
     this.timer = setInterval(() => {
       void this.tick();
@@ -58,7 +63,10 @@ export class PlaybackController {
 
   state(): PlaybackState {
     return {
-      playlist: this.playlist,
+      playlist: this.selectedPlaylist,
+      playingPlaylistId: this.playlist.id,
+      playingItemId: this.playlist.activeItemId,
+      revision: this.revision,
       snapshot: this.snapshot,
       running: this.running,
       autoFullscreen: this.autoFullscreen,
@@ -247,65 +255,131 @@ export class PlaybackController {
       .parse(result);
   }
 
-  async select(id: string) {
-    await this.stop();
-    const document = this.library.list().find(doc => doc.id === id);
+  get selectedPlaylist() {
+    return this.getPlaylist(this.selectedId);
+  }
+
+  private getPlaylist(id: string) {
+    const document = id === this.playlist.id ? this.playlist : this.library.get(id);
 
     if (!document) {
       throw new Error('播放列表不存在');
     }
 
-    this.playlist = document;
-    this.library.setSetting('activePlaylist', id);
+    return document;
+  }
+
+  select(id: string) {
+    this.getPlaylist(id);
+    this.selectedId = id;
+    this.revision++;
+    this.library.setSetting('selectedPlaylist', id);
+  }
+
+  async playSelected(id: string, resume = true) {
+    const target = this.selectedPlaylist;
+
+    if (!flattenPlaylist(target.nodes).some(item => item.id === id)) {
+      throw new Error('找不到播放条目');
+    }
+
+    if (target.id !== this.playlist.id) {
+      await this.stop();
+      this.playlist = this.getPlaylist(target.id);
+      this.library.setSetting('activePlaylist', target.id);
+    }
+
+    await this.play(id, resume);
+  }
+
+  async stepSelected(direction: number) {
+    if (this.selectedId === this.playlist.id) {
+      return this.step(direction);
+    }
+
+    const target = this.selectedPlaylist;
+    const queue = flattenPlaylist(target.nodes);
+    const index = queue.findIndex(item => item.id === target.activeItemId);
+    const next = queue[index + direction];
+
+    if (next) {
+      await this.playSelected(next.id, false);
+    }
+  }
+
+  editSelected(document: Playlist, revision: number) {
+    if (document.id !== this.selectedId) {
+      throw new Error('当前列表已变化，请刷新后重试');
+    }
+
+    return this.edit(document, revision);
   }
 
   async replace(document: Playlist) {
     const parsed = playlistSchema.parse(document);
     await this.stop();
     this.playlist = parsed;
+    this.selectedId = parsed.id;
+    this.library.setSetting('selectedPlaylist', parsed.id);
+    this.revision++;
     this.persist();
     this.library.setSetting('activePlaylist', parsed.id);
   }
 
-  async edit(document: Playlist) {
+  async edit(document: Playlist, expectedRevision = this.revision) {
+    this.checkRevision(expectedRevision);
     const parsed = playlistSchema.parse(document);
 
-    if (parsed.id !== this.playlist.id) {
-      throw new Error('当前列表已变化，请刷新后重试');
-    }
+    const documentBefore = this.getPlaylist(parsed.id);
+    const isPlayingList = parsed.id === this.playlist.id;
 
     // 结构编辑不得用界面中稍旧的快照覆盖主进程刚收到的播放进度。
     const ids = new Set(parsed.nodes.map(node => node.id));
-    const activeId = this.playlist.activeItemId;
-    const before = this.playlist.nodes.find(node => node.id === activeId);
+    const activeId = documentBefore.activeItemId;
+    const before = documentBefore.nodes.find(node => node.id === activeId);
     const after = parsed.nodes.find(node => node.id === activeId);
 
-    const playbackChanged = playbackSource(before) !== playbackSource(after);
+    const playbackChanged = isPlayingList && playbackSource(before) !== playbackSource(after);
 
     if (playbackChanged) {
       await this.stop();
+      this.checkRevision(expectedRevision);
     }
 
     parsed.progress = Object.fromEntries(
-      Object.entries(this.playlist.progress).filter(
+      Object.entries(documentBefore.progress).filter(
         ([id]) =>
           ids.has(id) &&
-          playbackSource(this.playlist.nodes.find(node => node.id === id)) ===
+          playbackSource(documentBefore.nodes.find(node => node.id === id)) ===
             playbackSource(parsed.nodes.find(node => node.id === id)),
       ),
     );
-    parsed.activeItemId = ids.has(this.playlist.activeItemId ?? '')
-      ? this.playlist.activeItemId
+    parsed.activeItemId = ids.has(documentBefore.activeItemId ?? '')
+      ? documentBefore.activeItemId
       : null;
 
-    if (!parsed.activeItemId) {
+    if (isPlayingList && !parsed.activeItemId) {
       this.running = false;
       this.pending = undefined;
     }
 
-    this.playlist = parsed;
-    this.persist();
+    parsed.updatedAt = new Date().toISOString();
+
+    if (isPlayingList) {
+      this.playlist = parsed;
+      this.persist();
+    } else {
+      this.library.save(parsed);
+    }
+
+    this.revision++;
     return parsed;
+  }
+
+  private checkRevision(expected: number) {
+    if (expected !== this.revision) {
+      throw new Error('播放列表刚刚发生变化，请稍后重新保存');
+    }
   }
 
   setFullscreen(value: boolean) {

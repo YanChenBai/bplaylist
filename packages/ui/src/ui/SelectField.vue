@@ -2,9 +2,11 @@
 import { Check, ChevronDown } from '@lucide/vue';
 import { onClickOutside, useEventListener } from '@vueuse/core';
 import { cn } from 'cn';
-import { computed, nextTick, ref, useId, useTemplateRef } from 'vue';
+import { computed, inject, nextTick, ref, shallowRef, useId, useTemplateRef } from 'vue';
 
-import { activeDialog } from '../../lib/interaction.ts';
+import { uiRootKey } from '../interaction.ts';
+
+const uiRoot = inject(uiRootKey, undefined);
 
 const value = defineModel<string>({ default: '' });
 
@@ -21,6 +23,7 @@ const trigger = useTemplateRef<HTMLButtonElement>('trigger');
 const menu = useTemplateRef<HTMLElement>('menu');
 const menuStyle = ref({ left: '0px', top: '0px', width: '0px' });
 const open = ref(false);
+const menuTarget = shallowRef<HTMLElement | string>(uiRoot ?? 'body');
 const focused = ref(0);
 const id = useId();
 
@@ -72,6 +75,7 @@ async function show(keyboard = false) {
     return;
   }
 
+  menuTarget.value = trigger.value?.closest<HTMLDialogElement>('dialog[open]') ?? uiRoot ?? 'body';
   open.value = !open.value;
   positionMenu();
   focused.value = Math.max(
@@ -98,13 +102,13 @@ function choose(index: number) {
 }
 
 function keydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' || event.key === 'Tab') {
+  if (event.key === 'Escape') {
+    closeOnEscape(event);
+    return;
+  }
+
+  if (event.key === 'Tab') {
     open.value = false;
-
-    if (event.key === 'Escape') {
-      trigger.value?.focus();
-    }
-
     return;
   }
 
@@ -132,10 +136,21 @@ function keydown(event: KeyboardEvent) {
 
   menu.value?.querySelector<HTMLElement>(`[data-option="${focused.value}"]`)?.focus();
 }
+
+function closeOnEscape(event: KeyboardEvent) {
+  if (!open.value) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  open.value = false;
+  trigger.value?.focus();
+}
 </script>
 
 <template>
-  <div ref="root" class="relative min-w-0">
+  <div ref="root" class="relative min-w-0" @keydown.esc="closeOnEscape" @keydown.tab="open = false">
     <button
       ref="trigger"
       type="button"
@@ -158,7 +173,7 @@ function keydown(event: KeyboardEvent) {
       <span class="truncate">{{ selected }}</span
       ><ChevronDown :size="13" class="text-muted shrink-0" />
     </button>
-    <Teleport :to="activeDialog ?? 'body'">
+    <Teleport :to="menuTarget">
       <Transition
         enter-active-class="transition-[opacity,translate,scale] duration-120 ease-out motion-reduce:transition-none"
         enter-from-class="opacity-0 -translate-y-1 scale-98"
@@ -186,7 +201,7 @@ function keydown(event: KeyboardEvent) {
             :disabled="option.disabled"
             :data-option="index"
             tabindex="-1"
-            class="text-foreground flex w-full items-center justify-between gap-2 rounded px-2.5 py-2 text-left text-[11px] outline-none hover:bg-white/5 focus:bg-white/8 disabled:opacity-40"
+            class="text-foreground hover:bg-foreground/5 focus:bg-foreground/8 flex w-full items-center justify-between gap-2 rounded px-2.5 py-2 text-left text-[11px] outline-none disabled:opacity-40"
             @click="choose(index)"
           >
             <span class="truncate">{{ option.label }}</span

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import type { ElectronApplication } from '@playwright/test';
 import { _electron as electron, expect } from '@playwright/test';
 
-import { playlistSchema } from '../packages/shared/src/index.ts';
+import { createPlaylist, playlistSchema } from '../packages/shared/src/index.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(root, 'apps/desktop/package.json'));
@@ -47,6 +47,10 @@ const playlist = {
 const database = new DatabaseSync(join(userData, 'bplaylist.sqlite'));
 database.exec('CREATE TABLE playlists (id TEXT PRIMARY KEY NOT NULL, document TEXT NOT NULL)');
 database.prepare('INSERT INTO playlists VALUES (?, ?)').run(playlist.id, JSON.stringify(playlist));
+const browsingList = createPlaylist('仅浏览的列表');
+database
+  .prepare('INSERT INTO playlists VALUES (?, ?)')
+  .run(browsingList.id, JSON.stringify(browsingList));
 database.close();
 
 // 确定性的页面夹具；实际执行构建产物里的注入脚本、oRPC 和 SQLite。
@@ -95,6 +99,17 @@ async function launch() {
     { fixture, url },
   );
   return { instance, page };
+}
+
+async function setNativePointer(x: number, y: number) {
+  assert.ok(app);
+  await app.evaluate(
+    ({ BrowserWindow, screen }, { x, y }) => {
+      const bounds = BrowserWindow.getAllWindows()[0]!.getContentBounds();
+      screen.getCursorScreenPoint = () => ({ x: bounds.x + x, y: bounds.y + y });
+    },
+    { x, y },
+  );
 }
 
 async function guestRead(script: string) {
@@ -187,7 +202,7 @@ try {
     }),
   );
 
-  assert.equal(headerControls.length, 6);
+  assert.equal(headerControls.length, 8);
 
   for (let index = 0; index < headerControls.length; index++) {
     assert.equal(headerControls[index].width, 46);
@@ -200,6 +215,7 @@ try {
   }
 
   await page.getByRole('button', { name: '进入沉浸模式', exact: true }).click();
+  await setNativePointer(500, 250);
   await page.mouse.move(500, 250);
   await expect(page.locator('main > header')).toBeHidden();
 
@@ -217,6 +233,7 @@ try {
 
   await expect(page.locator('aside')).toHaveCount(0);
   await page.screenshot({ path: join(artifacts, 'immersive.png') });
+  await setNativePointer(500, 4);
   await page.mouse.move(500, 4);
   await expect(page.getByRole('navigation', { name: '网页导航' })).toBeVisible();
   await expect(page.getByRole('button', { name: '最小化窗口' })).toBeVisible();
@@ -236,6 +253,7 @@ try {
     .poll(async () => (await page.getByRole('region', { name: 'B 站浏览器' }).boundingBox())!.width)
     .toBe(immersiveBrowser.width - 380);
   await page.screenshot({ path: join(artifacts, 'immersive-header.png') });
+  await setNativePointer(500, 250);
   await page.mouse.move(500, 250);
   await expect(page.locator('main > header')).toBeHidden();
   await app.evaluate(({ webContents }) => {
@@ -268,6 +286,7 @@ try {
   await expect(page.getByRole('listbox', { name: '切换播放列表' })).toBeVisible();
   await page.screenshot({ path: join(artifacts, 'playlist-select.png') });
   await page.keyboard.press('Escape');
+  await expect(page.getByRole('listbox', { name: '切换播放列表' })).toHaveCount(0);
   await page.getByRole('button', { name: '播放 测试片段 A', exact: true }).click();
   await expect.poll(() => guestRead('document.querySelector("video").currentTime')).toBe(10);
   await expect
@@ -291,6 +310,13 @@ try {
   await expect
     .poll(() => guestRead('Boolean(document.querySelector(".bpx-state-web"))'))
     .toBe(true);
+
+  const playlistSelect = page.getByRole('combobox', { name: '切换播放列表' });
+  await playlistSelect.click();
+  await page.getByRole('option', { name: browsingList.title, exact: true }).click();
+  await expect(playlistSelect).toContainText(browsingList.title);
+  assert.equal(await guestRead('document.querySelector("video").paused'), false);
+  assert.equal(await guestRead('document.querySelector("video").currentTime'), 10);
 
   const collapsing = await page.evaluate(async () => {
     const panel = document.querySelector('aside')!.parentElement!;
@@ -316,6 +342,11 @@ try {
   await expect.poll(() => guestRead('document.querySelector("video").currentTime')).toBe(50);
   await page.getByRole('button', { name: '展开播放列表', exact: true }).click();
   await expect.poll(() => readDocument().progress.B?.completed).toBe(true);
+  await playlistSelect.click();
+  await page.getByRole('option', { name: '播放验证', exact: true }).click();
+  await expect(playlistSelect).toContainText('播放验证');
+  assert.equal(await guestRead('document.querySelector("video").paused'), false);
+  assert.equal(await guestRead('document.querySelector("video").currentTime'), 50);
   await page.getByRole('button', { name: '添加分组', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect
@@ -437,6 +468,15 @@ try {
   } catch (error) {
     process.stderr.write(
       `${JSON.stringify({
+        state: await session.page.evaluate(async () => {
+          const root = document.getElementById('app') as HTMLElement & {
+            __vue_app__: {
+              _instance: { setupState: { api: { rpc: { state: () => Promise<unknown> } } } };
+            };
+          };
+
+          return root.__vue_app__._instance.setupState.api.rpc.state();
+        }),
         saved: readDocument(),
         url: await guestRead('location.href'),
         errors,

@@ -85,7 +85,7 @@ export const useWorkspace = defineStore('workspace', () => {
 
       const document = JSON.parse(JSON.stringify(state.value.playlist)) as Playlist;
       change(document);
-      await rpc.edit(document);
+      await rpc.edit({ playlist: document, revision: state.value.revision });
     });
   }
 
@@ -99,6 +99,10 @@ export const useWorkspace = defineStore('workspace', () => {
     queue.value.findIndex(item => item.id === state.value?.playlist.activeItemId),
   );
 
+  const playingItemId = computed(() =>
+    state.value?.playlist.id === state.value?.playingPlaylistId ? state.value?.playingItemId : null,
+  );
+
   const current = computed(() => queue.value[currentIndex.value]);
   return {
     state,
@@ -109,6 +113,7 @@ export const useWorkspace = defineStore('workspace', () => {
     queue,
     completed,
     currentIndex,
+    playingItemId,
     current,
     perform,
     edit,

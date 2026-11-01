@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/jetbrains-mono';
+
+@theme {
+  --font-sans: 'JetBrains Mono Variable', 'Microsoft YaHei', sans-serif;
+  --color-surface: #0e0e0e;
+  --color-panel: #111111;
+  --color-raised: #1b1b1b;
+  --color-border: #262626;
+  --color-foreground: #c4c4c4;
+  --color-heading: #e5e5e5;
+  --color-muted: #a3a3a3;
+  --color-dim: #737373;
+  --color-accent: #cccccc;
+}
+
+@layer base {
+  :root,
+  :host {
+    font-family: var(--font-sans);
+    color: var(--color-foreground);
+    background: var(--color-surface);
+    color-scheme: dark;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    margin: 0;
+    font-size: 12px;
+  }
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+  button {
+    cursor: pointer;
+    transition:
+      color 100ms ease-out,
+      background-color 100ms ease-out,
+      border-color 100ms ease-out,
+      scale 80ms ease-out;
+  }
+  button:active:not(:disabled) {
+    scale: 0.97;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  :focus-visible {
+    outline: 1px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 6px;
+  }
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-surface);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    button:active {
+      scale: 1;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --color-surface: #fafafa;
+  --color-panel: #ffffff;
+  --color-raised: #f0f0f0;
+  --color-border: #dedede;
+  --color-foreground: #383838;
+  --color-heading: #171717;
+  --color-muted: #626262;
+  --color-dim: #777777;
+  --color-accent: #333333;
+}

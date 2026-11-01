@@ -1,4 +1,7 @@
 import { shallowRef } from 'vue';
+import type { InjectionKey } from 'vue';
+
+export const uiRootKey: InjectionKey<HTMLElement> = Symbol('bplaylist-ui-root');
 
 export const activeDialog = shallowRef<HTMLDialogElement | null>(null);
 

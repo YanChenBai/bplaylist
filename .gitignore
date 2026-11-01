@@ -40,3 +40,7 @@ release/
 test-results/
 apps/desktop/build/icon.png
 apps/desktop/build/icon.ico
+
+.wxt/
+.output/
+apps/extension/public/icon/

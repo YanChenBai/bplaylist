@@ -1,0 +1,7 @@
+@import '@bplaylist/ui/styles.css';
+@source '../../../packages/ui/src';
+
+:host {
+  font-size: 12px;
+  line-height: 1.5;
+}

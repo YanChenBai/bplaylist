@@ -1,9 +1,8 @@
 <script setup lang="ts">
+import { captureActivation } from '@bplaylist/ui/interaction';
 import { Pencil, Trash2 } from '@lucide/vue';
 import { onClickOutside, useWindowSize } from '@vueuse/core';
 import { computed, nextTick, onMounted, useTemplateRef } from 'vue';
-
-import { captureActivation } from '../lib/interaction.ts';
 
 const props = defineProps<{ x: number; y: number }>();
 const emit = defineEmits<{ edit: []; remove: []; close: [] }>();
@@ -58,14 +57,14 @@ function keydown(event: KeyboardEvent) {
         <button
           type="button"
           role="menuitem"
-          class="text-foreground flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] outline-none hover:bg-white/5 focus:bg-white/8"
+          class="text-foreground hover:bg-foreground/5 focus:bg-foreground/8 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] outline-none"
           @click="emit('edit')"
         >
           <Pencil :size="13" />编辑</button
         ><button
           type="button"
           role="menuitem"
-          class="text-foreground flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] outline-none hover:bg-white/5 focus:bg-white/8"
+          class="text-foreground hover:bg-foreground/5 focus:bg-foreground/8 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] outline-none"
           @click="emit('remove')"
         >
           <Trash2 :size="13" />删除

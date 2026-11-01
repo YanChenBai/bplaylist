@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { displayTitle, formatTime, canMovePlaylistNode } from '@bplaylist/shared';
 import type { PlaylistNode, DropPosition } from '@bplaylist/shared';
+import ActionButton from '@bplaylist/ui/ui/ActionButton.vue';
 import { GripVertical, Check, ChevronRight, Folder } from '@lucide/vue';
 import { cn } from 'cn';
 import { computed, ref } from 'vue';
 
 import { useWorkspace } from '../stores/workspace.ts';
-import ActionButton from './ui/ActionButton.vue';
 
 const props = defineProps<{ parentId: string | null; depth?: number; draggingId: string | null }>();
 
@@ -127,7 +127,7 @@ function toggle(id: string) {
         :class="
           cn(
             'group hover:bg-raised/70 relative flex items-center gap-1 rounded-md border border-transparent px-1 py-1.5 transition-[background-color,border-color,opacity] duration-100',
-            workspace.state?.playlist.activeItemId === node.id && 'bg-raised border-border',
+            workspace.playingItemId === node.id && 'bg-raised border-border',
             draggingId === node.id && 'opacity-40',
             draggingId &&
               dropTarget?.id === node.id &&
@@ -191,9 +191,7 @@ function toggle(id: string) {
               :class="
                 cn(
                   'min-w-0 truncate text-[12px] leading-5',
-                  workspace.state?.playlist.activeItemId === node.id
-                    ? 'text-accent'
-                    : 'text-foreground',
+                  workspace.playingItemId === node.id ? 'text-accent' : 'text-foreground',
                 )
               "
               >{{ node.kind === 'video' ? node.alias || node.title : node.title }}</span

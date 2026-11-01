@@ -12,16 +12,21 @@
   "scripts": {
     "dev": "vp run @bplaylist/desktop#dev",
     "build": "vp run @bplaylist/desktop#build",
-    "typecheck": "vp exec tsc -p scripts/tsconfig.json && vp run @bplaylist/desktop#typecheck && vp run @bplaylist/sync#typecheck",
+    "typecheck": "vp exec tsc -p scripts/tsconfig.json && vp run @bplaylist/desktop#typecheck && vp run @bplaylist/sync#typecheck && vp run @bplaylist/extension#typecheck",
     "package": "vp run @bplaylist/desktop#package",
     "test:smoke": "vp run @bplaylist/desktop#test:smoke",
     "prepare": "vp config",
     "icons": "vpx scripts/generate-icons.ts",
     "test:live": "vpx scripts/live-smoke.ts",
     "test:fullscreen": "vpx scripts/fullscreen-smoke.ts",
-    "test:sync": "vpx scripts/sync-smoke.ts"
+    "test:sync": "vpx scripts/sync-smoke.ts",
+    "dev:extension": "vp run @bplaylist/extension#dev",
+    "build:extension": "vp run @bplaylist/extension#build",
+    "zip:extension": "vp run @bplaylist/extension#zip",
+    "test:extension": "vpx scripts/extension-smoke.ts"
   },
   "devDependencies": {
+    "@orpc/client": "^1.16.1",
     "@playwright/test": "^1.64.1",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/node": "^24.19.2",

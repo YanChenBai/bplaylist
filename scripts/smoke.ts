@@ -52,7 +52,7 @@ database.close();
 // 确定性的页面夹具；实际执行构建产物里的注入脚本、oRPC 和 SQLite。
 const fixture = `<!doctype html><html><head><meta charset="utf-8"><style>
 body{margin:0;background:#181818;color:#ddd;font:14px sans-serif}.bpx-player-container{margin:30px;background:#080808;height:70vh;display:grid;place-items:center}.bpx-state-web{position:fixed;inset:0;margin:0;height:100vh}button{padding:10px}video{width:0;height:0}
-</style></head><body><h1>测试播放器</h1><div class="bpx-player-container"><div><p>播放器适配器 · Electron 集成验证</p><button class="bpx-player-ctrl-web">网页全屏</button><video></video></div></div><script>
+</style></head><body><h1>测试播放器</h1><div class="bpx-player-container"><div><p>播放器适配器 · Electron 集成验证</p><button class="bpx-player-ctrl-web">网页全屏</button><video></video></div><div class="bpx-player-progress" style="position:absolute;bottom:32px;left:0;right:0;height:4px;background:#555"></div><div class="bpx-player-shadow-progress-schedule-wrap" style="position:absolute;bottom:0;left:0;right:0;height:2px;background:#555"></div></div><script>
 window.__INITIAL_STATE__={videoData:{bvid:'BV1GJ411x7h7',title:'测试播放器',pages:[{page:1,part:'第一集'},{page:2,part:'第二集'}]}};
 const video=document.querySelector('video');let position=0,paused=true,ended=false;
 Object.defineProperties(video,{currentTime:{get:()=>position,set:value=>{position=value;ended=false;video.dispatchEvent(new Event('seeked'))}},duration:{get:()=>100},readyState:{get:()=>4},paused:{get:()=>paused},ended:{get:()=>ended}});
@@ -271,6 +271,24 @@ try {
   await page.getByRole('button', { name: '播放 测试片段 A', exact: true }).click();
   await expect.poll(() => guestRead('document.querySelector("video").currentTime')).toBe(10);
   await expect
+    .poll(() => guestRead('document.querySelectorAll("[data-bplaylist-range]").length'))
+    .toBe(2);
+
+  const marker = await guestRead(
+    '(() => { const marker = document.querySelector("[data-bplaylist-range]"); return { left: marker.style.left, width: marker.style.width, color: getComputedStyle(marker).backgroundColor, pointerEvents: getComputedStyle(marker).pointerEvents }; })()',
+  );
+
+  assert.deepEqual(marker, {
+    left: '10%',
+    width: '10%',
+    color: 'rgb(255, 102, 153)',
+    pointerEvents: 'none',
+  });
+  await guestRead('document.querySelector(".bpx-player-progress").replaceChildren()');
+  await expect
+    .poll(() => guestRead('document.querySelectorAll("[data-bplaylist-range]").length'))
+    .toBe(2);
+  await expect
     .poll(() => guestRead('Boolean(document.querySelector(".bpx-state-web"))'))
     .toBe(true);
 
@@ -368,6 +386,7 @@ try {
   await page.getByRole('option', { name: '通过 UI 创建的分组', exact: true }).click();
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.getByRole('button', { name: '播放 UI 新建片段', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '拖拽 UI 新建片段', exact: true })).toBeEnabled();
   await page
     .getByRole('button', { name: '拖拽 UI 新建片段', exact: true })
     .dragTo(page.locator('[data-node-id="A"]'), { targetPosition: { x: 100, y: 42 } });
@@ -408,6 +427,9 @@ try {
   await expect(
     session.page.getByRole('button', { name: '播放 UI 修改片段', exact: true }),
   ).toBeVisible();
+  await expect(
+    session.page.getByRole('button', { name: '拖拽 测试片段 C', exact: true }),
+  ).toBeEnabled();
   await session.page.getByRole('button', { name: '播放 测试片段 C', exact: true }).click();
 
   try {
@@ -438,10 +460,20 @@ try {
   await rangePage.getByRole('button', { name: '保存', exact: true }).click();
   await rangePage.getByRole('button', { name: '播放 跨集活动', exact: true }).click();
   await expect.poll(() => guestRead('document.querySelector("video").currentTime')).toBe(80);
+  await expect
+    .poll(() => guestRead('document.querySelector("[data-bplaylist-range]")?.style.width'))
+    .toBe('20%');
   await guestRead('window.endVideo()');
   await expect.poll(() => guestRead('new URL(location.href).searchParams.get("p")')).toBe('2');
   await expect.poll(() => guestRead('document.querySelector("video").paused')).toBe(false);
   await expect.poll(() => guestRead('document.querySelector("video").currentTime')).toBe(0);
+  await expect
+    .poll(() => guestRead('document.querySelector("[data-bplaylist-range]")?.style.width'))
+    .toBe('36%');
+  assert.equal(
+    await guestRead('document.querySelector("[data-bplaylist-range]").style.left'),
+    '0%',
+  );
 
   const range = readDocument().nodes.find(
     node => node.kind === 'video' && node.alias === '跨集活动',
@@ -453,6 +485,10 @@ try {
   await expect.poll(() => readDocument().progress[range.id]?.completed).toBe(true);
   assert.equal(readDocument().progress[range.id].segmentIndex, 1);
   await expect.poll(() => guestRead('document.querySelector("video").paused')).toBe(true);
+  await guestRead("history.pushState({}, '', '?p=3')");
+  await expect
+    .poll(() => guestRead('document.querySelectorAll("[data-bplaylist-range]").length'))
+    .toBe(0);
   assert.deepEqual(errors, []);
   process.stdout.write(
     'Electron smoke passed: oRPC, injection, grouped clips, fullscreen, collapse, UI editing, SQLite restart/resume.\n',

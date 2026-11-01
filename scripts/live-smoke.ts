@@ -157,7 +157,37 @@ try {
     `Resolved: ${await page.getByLabel('视频标题', { exact: true }).inputValue()} / ${await page.getByLabel('分 P / 分集名称', { exact: true }).inputValue()}\n`,
   );
   await mkdir(join(root, 'test-results'), { recursive: true });
-  await page.getByRole('button', { name: '关闭对话框' }).click();
+  await page.getByLabel('别名（可选）').fill('范围标记验证');
+  await page.getByLabel('开始时间', { exact: true }).fill('00:10');
+  await page.getByLabel('结束时间（留空播到结尾）').fill('00:20');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await page.getByRole('button', { name: '播放 范围标记验证', exact: true }).click();
+  await expect
+    .poll(() =>
+      app.evaluate(async ({ webContents }) => {
+        const guest = webContents
+          .getAllWebContents()
+          .find(contents => contents.getType() === 'webview')!;
+
+        return guest.executeJavaScript(
+          'document.querySelectorAll("[data-bplaylist-range]").length',
+        );
+      }),
+    )
+    .toBeGreaterThan(0);
+  process.stdout.write(
+    `${JSON.stringify(
+      await app.evaluate(async ({ webContents }) => {
+        const guest = webContents
+          .getAllWebContents()
+          .find(contents => contents.getType() === 'webview')!;
+
+        return guest.executeJavaScript(
+          'Array.from(document.querySelectorAll("[data-bplaylist-range]")).map(marker => ({ track: marker.parentElement.className, left: marker.style.left, width: marker.style.width, color: getComputedStyle(marker).backgroundColor, pointerEvents: getComputedStyle(marker).pointerEvents }))',
+        );
+      }),
+    )}\n`,
+  );
   await page.screenshot({ path: join(root, 'test-results/live-episode.png') });
 } finally {
   await app.close();

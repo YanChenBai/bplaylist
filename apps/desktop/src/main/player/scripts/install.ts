@@ -9,6 +9,7 @@ interface PageBridge {
 }
 
 interface BiliPage extends Window {
+  __bplaylistRange?: PlaybackRange | null;
   __bplaylist?: PageBridge;
   __INITIAL_STATE__?: {
     videoData?: { bvid?: string; title?: string; pages?: { page: number; part: string }[] };
@@ -206,6 +207,7 @@ export default function install() {
       loadSeason();
       bind();
       update();
+      updateRangeOverlay(page.__bplaylistRange, observed.duration);
       return {
         url: location.href,
         ...metadata(),
@@ -253,4 +255,58 @@ export default function install() {
 
   // 页面切换或播放器重建时，下次读取会重新绑定 video 事件。
   return page.__bplaylist.read();
+}
+
+interface PlaybackRange {
+  url: string;
+  start: number;
+  end: number | null;
+}
+
+function sourceIdentity(value: string) {
+  const url = new URL(value);
+  return `${url.pathname.replace(/\/$/, '')}?p=${url.searchParams.get('p') || '1'}`;
+}
+
+/** 标记跟随原生轨道尺寸，不拦截播放器的拖动和预览事件。 */
+function updateRangeOverlay(range: PlaybackRange | null | undefined, duration: number) {
+  const selector = '[data-bplaylist-range]';
+
+  if (
+    !range ||
+    !Number.isFinite(duration) ||
+    duration <= 0 ||
+    sourceIdentity(range.url) !== sourceIdentity(location.href)
+  ) {
+    document.querySelectorAll(selector).forEach(element => element.remove());
+    return;
+  }
+
+  const start = Math.min(duration, Math.max(0, range.start));
+  const end = Math.min(duration, range.end ?? duration);
+
+  if (end <= start) {
+    document.querySelectorAll(selector).forEach(element => element.remove());
+    return;
+  }
+
+  const tracks = document.querySelectorAll<HTMLElement>(
+    '.bpx-player-progress, .bpx-player-shadow-progress-schedule-wrap, .bilibili-player-video-progress',
+  );
+
+  for (const track of tracks) {
+    let marker = track.querySelector<HTMLElement>(`:scope > ${selector}`);
+
+    if (!marker) {
+      marker = document.createElement('span');
+      marker.dataset.bplaylistRange = '';
+      marker.setAttribute('aria-hidden', 'true');
+      marker.style.cssText =
+        'position:absolute;top:0;bottom:0;pointer-events:none;background:#FF6699;opacity:.7;z-index:1;border-radius:inherit;';
+      track.append(marker);
+    }
+
+    marker.style.left = `${(start / duration) * 100}%`;
+    marker.style.width = `${((end - start) / duration) * 100}%`;
+  }
 }

@@ -31,7 +31,7 @@ class Guest extends EventEmitter {
   }
 
   async executeJavaScript(script: string) {
-    if (script === 'read') {
+    if (script.endsWith('\nread')) {
       return { ...this.snapshot };
     }
 

@@ -112,6 +112,22 @@ export class PlaybackController {
     );
   }
 
+  private async readSnapshot(guest: WebContents) {
+    const item = this.playlist.nodes.find(node => node.id === this.playlist.activeItemId);
+
+    const index =
+      this.tracking || this.pending
+        ? this.segmentIndex
+        : (this.playlist.progress[item?.id ?? '']?.segmentIndex ?? 0);
+
+    const range = item?.kind === 'video' ? (playbackSegments(item)[index] ?? null) : null;
+    return snapshotSchema.parse(
+      await guest.executeJavaScript(
+        `window.__bplaylistRange = ${JSON.stringify(range)};\n${installScript}`,
+      ),
+    );
+  }
+
   async control(command: Command) {
     if (command.action === 'pause') {
       this.running = false;
@@ -120,7 +136,7 @@ export class PlaybackController {
     }
 
     await this.execute(command);
-    this.snapshot = snapshotSchema.parse(await this.getGuest().executeJavaScript(installScript));
+    this.snapshot = await this.readSnapshot(this.getGuest());
     this.capture();
     this.persist();
   }
@@ -475,7 +491,7 @@ export class PlaybackController {
     const generation = this.generation;
 
     try {
-      const snapshot = snapshotSchema.parse(await guest.executeJavaScript(installScript));
+      const snapshot = await this.readSnapshot(guest);
 
       if (generation !== this.generation) {
         return;

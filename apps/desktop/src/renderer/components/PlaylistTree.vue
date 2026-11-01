@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { displayTitle, formatTime, canMovePlaylistNode } from '@bplaylist/shared';
 import type { PlaylistNode, DropPosition } from '@bplaylist/shared';
-import { GripVertical, Check, ChevronDown, ChevronRight, Folder } from '@lucide/vue';
+import { GripVertical, Check, ChevronRight, Folder } from '@lucide/vue';
 import { cn } from 'cn';
 import { computed, ref } from 'vue';
 
@@ -161,9 +161,13 @@ function toggle(id: string) {
         <ActionButton
           v-if="node.kind === 'group'"
           :aria-label="`${collapsed.has(node.id) ? '展开' : '折叠'} ${node.title}`"
+          :aria-expanded="!collapsed.has(node.id)"
           class="p-1"
           @click="toggle(node.id)"
-          ><ChevronRight v-if="collapsed.has(node.id)" :size="13" /><ChevronDown v-else :size="13"
+          ><ChevronRight
+            :size="13"
+            class="transition-transform duration-120 ease-out motion-reduce:transition-none"
+            :class="collapsed.has(node.id) ? '' : 'rotate-90'"
         /></ActionButton>
         <span v-else class="text-dim w-4 shrink-0 text-center text-[10px] tabular-nums"
           ><Check
@@ -225,17 +229,29 @@ function toggle(id: string) {
           </span>
         </button>
       </div>
-      <PlaylistTree
-        v-if="node.kind === 'group' && !collapsed.has(node.id)"
-        :parent-id="node.id"
-        :depth="(depth ?? 0) + 1"
-        @play="emit('play', $event)"
-        @context="(node, x, y) => emit('context', node, x, y)"
-        :dragging-id="draggingId"
-        @drag-start="emit('dragStart', $event)"
-        @drag-end="emit('dragEnd')"
-        @reorder="(id, targetId, position) => emit('reorder', id, targetId, position)"
-      />
+      <Transition
+        enter-active-class="transition-[grid-template-rows,opacity] duration-160 ease-out motion-reduce:transition-none"
+        enter-from-class="grid-rows-[0fr] opacity-0"
+        enter-to-class="grid-rows-[1fr] opacity-100"
+        leave-active-class="transition-[grid-template-rows,opacity] duration-120 ease-in motion-reduce:transition-none"
+        leave-from-class="grid-rows-[1fr] opacity-100"
+        leave-to-class="grid-rows-[0fr] opacity-0"
+      >
+        <div v-if="node.kind === 'group' && !collapsed.has(node.id)" class="grid">
+          <div class="min-h-0 overflow-hidden">
+            <PlaylistTree
+              :parent-id="node.id"
+              :depth="(depth ?? 0) + 1"
+              @play="emit('play', $event)"
+              @context="(node, x, y) => emit('context', node, x, y)"
+              :dragging-id="draggingId"
+              @drag-start="emit('dragStart', $event)"
+              @drag-end="emit('dragEnd')"
+              @reorder="(id, targetId, position) => emit('reorder', id, targetId, position)"
+            />
+          </div>
+        </div>
+      </Transition>
     </li>
   </ul>
 </template>

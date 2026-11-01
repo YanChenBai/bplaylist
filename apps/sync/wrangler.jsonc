@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bplaylist-sync",
+  "main": "src/index.ts",
+  "alias": {
+    "@bplaylist/shared": "../../packages/shared/src/index.ts",
+    "zod": "./node_modules/zod/index.js",
+  },
+  "compatibility_date": "2026-10-30",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bplaylist",
+      "database_id": "replace-with-your-d1-database-id",
+      "migrations_dir": "migrations",
+    },
+  ],
+}

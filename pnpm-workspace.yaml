@@ -1,0 +1,21 @@
+packages:
+  - apps/*
+  - packages/*
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  workerd: true
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vite-plus: 1.4.0
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-types@5.20261101.1'
+overrides:
+  typescript: npm:typescript-native-bridge@6.0.3-bridge.19.tsgo.7.0.2
+  vite@*: 'catalog:'
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: '*'

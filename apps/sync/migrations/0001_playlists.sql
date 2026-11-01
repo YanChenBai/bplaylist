@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS playlists (
+  id TEXT PRIMARY KEY NOT NULL,
+  title TEXT NOT NULL,
+  document TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL
+);

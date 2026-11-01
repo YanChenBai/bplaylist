@@ -1,0 +1,43 @@
+{
+  "name": "bplaylist",
+  "version": "0.1.0",
+  "private": true,
+  "description": "自定义 B 站播放列表，串联视频、分集与跨集片段。",
+  "homepage": "https://github.com/YanChenBai/bplaylist#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YanChenBai/bplaylist.git"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vp run @bplaylist/desktop#dev",
+    "build": "vp run @bplaylist/desktop#build",
+    "typecheck": "vp exec tsc -p scripts/tsconfig.json && vp run @bplaylist/desktop#typecheck && vp run @bplaylist/sync#typecheck",
+    "package": "vp run @bplaylist/desktop#package",
+    "test:smoke": "vp run @bplaylist/desktop#test:smoke",
+    "prepare": "vp config",
+    "icons": "vpx scripts/generate-icons.ts",
+    "test:live": "vpx scripts/live-smoke.ts",
+    "test:sync": "vpx scripts/sync-smoke.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/node": "^24.19.2",
+    "sharp": "^0.35.5",
+    "typescript": "npm:typescript-native-bridge@6.0.3-bridge.19.tsgo.7.0.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "wrangler": "^4.0.0"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.16.1",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

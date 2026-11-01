@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 128 128" fill="none" role="img" aria-labelledby="title description">
+  <title id="title">BPlaylist</title>
+  <desc id="description">A solid soft white television with two antennas, a playlist and a play symbol. No outlines.</desc>
+  <rect width="128" height="128" rx="29" fill="#111111"/>
+  <g transform="translate(10.24 10.24) scale(.84)">
+  <g fill="#D6D6D6">
+    <rect x="42" y="17" width="8" height="27" rx="4" transform="rotate(-38 46 30.5)"/>
+    <rect x="78" y="17" width="8" height="27" rx="4" transform="rotate(38 82 30.5)"/>
+    <rect x="22" y="36" width="84" height="66" rx="16"/>
+    <rect x="39" y="96" width="12" height="13" rx="4"/>
+    <rect x="77" y="96" width="12" height="13" rx="4"/>
+  </g>
+  <g fill="#111111">
+    <rect x="35" y="54" width="29" height="6" rx="3"/>
+    <rect x="35" y="66" width="23" height="6" rx="3"/>
+    <rect x="35" y="78" width="17" height="6" rx="3"/>
+    <path d="M76 58C76 56.4 77.8 55.4 79.2 56.3L94 66.3C95.2 67.1 95.2 68.9 94 69.7L79.2 79.7C77.8 80.6 76 79.6 76 78V58Z"/>
+  </g>
+  </g>
+</svg>

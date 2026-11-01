@@ -218,7 +218,10 @@ function navigate() {
         <WindowControls :maximized="workspace.maximized" />
       </header>
     </Transition>
-    <div class="relative flex min-h-0 flex-1">
+    <div
+      class="relative flex min-h-0 flex-1 transition-[padding-top] duration-140 ease-out motion-reduce:transition-none"
+      :style="{ paddingTop: workspace.immersive && chromeRevealed ? '40px' : '0px' }"
+    >
       <BrowserPane
         ref="browser"
         @location="updateLocation"
@@ -230,11 +233,7 @@ function navigate() {
         leave-active-class="transition-[width,opacity] duration-120 ease-in motion-reduce:transition-none"
         leave-from-class="w-[380px] opacity-100"
         leave-to-class="w-0! opacity-0"
-        ><div
-          v-if="!collapsed"
-          class="flex min-h-0 w-[380px] shrink-0 flex-col overflow-hidden transition-[padding-top] duration-140 ease-out motion-reduce:transition-none"
-          :style="{ paddingTop: workspace.immersive && chromeRevealed ? '40px' : '0px' }"
-        >
+        ><div v-if="!collapsed" class="flex min-h-0 w-[380px] shrink-0 flex-col overflow-hidden">
           <PlaylistPanel /></div
       ></Transition>
     </div>

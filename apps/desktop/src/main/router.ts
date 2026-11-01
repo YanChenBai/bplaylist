@@ -63,6 +63,10 @@ export function createRouter(
       await player.replace(createPlaylist(input));
       return player.state();
     }),
+    removePlaylist: procedure.input(z.string().min(1).max(100)).handler(async ({ input }) => {
+      await player.removePlaylist(input);
+      return player.state();
+    }),
     select: procedure.input(z.string()).handler(async ({ input }) => {
       player.select(input);
       return player.state();

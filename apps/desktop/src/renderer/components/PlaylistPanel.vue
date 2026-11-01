@@ -21,6 +21,7 @@ const editor = ref<{ kind: 'video' | 'group'; node?: PlaylistNode } | null>(null
 const nameDialog = ref<'create' | 'rename' | null>(null);
 const name = ref('');
 const removeId = ref<string | null>(null);
+const removingPlaylist = ref<{ id: string; title: string } | null>(null);
 const draggingId = ref<string | null>(null);
 const nameFormId = useId();
 const context = ref<{ node: PlaylistNode; x: number; y: number } | null>(null);
@@ -87,6 +88,26 @@ async function remove() {
   }
 }
 
+function requestRemovePlaylist() {
+  const document = workspace.state?.playlist;
+
+  if (document) {
+    removingPlaylist.value = { id: document.id, title: document.title };
+  }
+}
+
+async function removePlaylist() {
+  if (!removingPlaylist.value) {
+    return;
+  }
+
+  const id = removingPlaylist.value.id;
+
+  if (await workspace.perform(() => rpc.removePlaylist(id))) {
+    removingPlaylist.value = null;
+  }
+}
+
 async function saveName() {
   const saved =
     nameDialog.value === 'create'
@@ -103,7 +124,7 @@ async function saveName() {
 
 <template>
   <aside
-    class="border-border bg-panel flex h-full w-[380px] shrink-0 flex-col border-l"
+    class="border-border bg-panel flex min-h-0 w-[380px] flex-1 shrink-0 flex-col border-l"
     aria-label="播放列表"
   >
     <div class="border-border border-b px-3 py-1">
@@ -118,6 +139,7 @@ async function saveName() {
           @update:model-value="value => workspace.perform(() => api.rpc.select(value))"
         />
         <PlaylistSettings
+          @remove="requestRemovePlaylist"
           @rename="
             name = workspace.state?.playlist.title ?? '';
             nameDialog = 'rename';
@@ -215,6 +237,30 @@ async function saveName() {
           </button>
         </div></template
       >
+    </ModalDialog>
+    <ModalDialog v-if="removingPlaylist" title="删除播放列表" @close="removingPlaylist = null">
+      <p class="text-muted leading-6">
+        确定删除「{{ removingPlaylist.title }}」？列表中的全部条目和本地播放进度也会删除。
+      </p>
+      <p
+        v-if="
+          workspace.state?.playingPlaylistId === removingPlaylist.id && workspace.state?.running
+        "
+        class="text-muted mt-3 leading-6"
+      >
+        此列表正在播放，删除后将停止播放。
+      </p>
+      <template #footer>
+        <span />
+        <div class="flex items-center gap-2">
+          <ActionButton :disabled="workspace.busy" @click="removingPlaylist = null"
+            >取消</ActionButton
+          >
+          <ActionButton class="border-border" :disabled="workspace.busy" @click="removePlaylist"
+            >删除播放列表</ActionButton
+          >
+        </div>
+      </template>
     </ModalDialog>
     <ModalDialog v-if="removeId" title="删除条目" @close="removeId = null"
       ><p class="text-muted mb-5 leading-6">删除分组也会删除组内所有条目与进度。</p>

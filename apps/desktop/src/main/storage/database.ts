@@ -33,6 +33,9 @@ export function openLibrary(path: string) {
         .onConflictDoUpdate({ target: playlists.id, set: { document: JSON.stringify(value) } })
         .run();
     },
+    remove(id: string) {
+      db.delete(playlists).where(eq(playlists.id, id)).run();
+    },
     getSetting(key: string): string | null {
       return db.select().from(settings).where(eq(settings.key, key)).get()?.value ?? null;
     },

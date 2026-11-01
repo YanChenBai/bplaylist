@@ -268,17 +268,15 @@ function sourceIdentity(value: string) {
   return `${url.pathname.replace(/\/$/, '')}?p=${url.searchParams.get('p') || '1'}`;
 }
 
-/** 标记跟随原生轨道尺寸，不拦截播放器的拖动和预览事件。 */
+/** 粉色范围位于原生轨道内，蓝色已播放进度保持在前景。 */
 function updateRangeOverlay(range: PlaybackRange | null | undefined, duration: number) {
-  const selector = '[data-bplaylist-range]';
-
   if (
     !range ||
     !Number.isFinite(duration) ||
     duration <= 0 ||
     sourceIdentity(range.url) !== sourceIdentity(location.href)
   ) {
-    document.querySelectorAll(selector).forEach(element => element.remove());
+    clearRangeOverlay();
     return;
   }
 
@@ -286,27 +284,107 @@ function updateRangeOverlay(range: PlaybackRange | null | undefined, duration: n
   const end = Math.min(duration, range.end ?? duration);
 
   if (end <= start) {
-    document.querySelectorAll(selector).forEach(element => element.remove());
+    clearRangeOverlay();
     return;
   }
+
+  const markers = new Set<HTMLElement>();
 
   const tracks = document.querySelectorAll<HTMLElement>(
     '.bpx-player-progress, .bpx-player-shadow-progress-schedule-wrap, .bilibili-player-video-progress',
   );
 
   for (const track of tracks) {
-    let marker = track.querySelector<HTMLElement>(`:scope > ${selector}`);
-
-    if (!marker) {
-      marker = document.createElement('span');
-      marker.dataset.bplaylistRange = '';
-      marker.setAttribute('aria-hidden', 'true');
-      marker.style.cssText =
-        'position:absolute;top:0;bottom:0;pointer-events:none;background:#FF6699;opacity:.7;z-index:1;border-radius:inherit;';
-      track.append(marker);
-    }
-
+    const marker = rangeTrackOverlay(track);
+    markers.add(marker);
     marker.style.left = `${(start / duration) * 100}%`;
     marker.style.width = `${((end - start) / duration) * 100}%`;
   }
+
+  document.querySelectorAll<HTMLElement>('[data-bplaylist-range]').forEach(marker => {
+    if (!markers.has(marker)) {
+      marker.remove();
+    }
+  });
+  restoreRangeLayers();
+}
+
+function rangeTrackOverlay(track: HTMLElement) {
+  const foreground = track.querySelector<HTMLElement>(
+    '.bui-bar-progress, .bpx-player-progress-schedule, .bpx-player-shadow-progress-schedule, .bilibili-player-video-progress-now',
+  );
+
+  const rail = foreground?.parentElement ?? track;
+
+  if (!rail.hasAttribute('data-bplaylist-range-rail')) {
+    rail.dataset.bplaylistRangeRail = rail.style.position;
+  }
+
+  if (getComputedStyle(rail).position === 'static') {
+    rail.style.position = 'relative';
+  }
+
+  let marker = rail.querySelector<HTMLElement>(':scope > [data-bplaylist-range]');
+
+  if (!marker) {
+    marker = document.createElement('span');
+    marker.dataset.bplaylistRange = '';
+    marker.setAttribute('aria-hidden', 'true');
+    marker.style.cssText =
+      'position:absolute;top:0;bottom:0;pointer-events:none;background:#FF6699;opacity:1;z-index:1;border-radius:inherit;';
+    rail.prepend(marker);
+  }
+
+  if (foreground) {
+    raiseRangeForeground(foreground, marker);
+  }
+
+  return marker;
+}
+
+function raiseRangeForeground(foreground: HTMLElement, marker: HTMLElement) {
+  if (!foreground.hasAttribute('data-bplaylist-range-foreground')) {
+    const originalZ = Number.parseInt(getComputedStyle(foreground).zIndex, 10) || 0;
+    foreground.dataset.bplaylistRangeLayer = String(Math.max(1, originalZ + 1));
+    foreground.dataset.bplaylistRangeForeground = foreground.style.zIndex;
+    foreground.dataset.bplaylistRangePosition = foreground.style.position;
+  }
+
+  const layer = Number(foreground.dataset.bplaylistRangeLayer) || 1;
+  marker.style.zIndex = String(layer);
+
+  if (getComputedStyle(foreground).position === 'static') {
+    foreground.style.position = 'relative';
+  }
+
+  foreground.style.zIndex = String(layer + 1);
+}
+
+function clearRangeOverlay() {
+  document
+    .querySelectorAll('[data-bplaylist-range], [data-bplaylist-range-track]')
+    .forEach(element => element.remove());
+  restoreRangeLayers();
+}
+
+function restoreRangeLayers() {
+  document.querySelectorAll<HTMLElement>('[data-bplaylist-range-foreground]').forEach(element => {
+    if (element.parentElement?.querySelector(':scope > [data-bplaylist-range]')) {
+      return;
+    }
+
+    element.style.zIndex = element.dataset.bplaylistRangeForeground ?? '';
+    element.style.position = element.dataset.bplaylistRangePosition ?? '';
+    delete element.dataset.bplaylistRangeLayer;
+    delete element.dataset.bplaylistRangeForeground;
+    delete element.dataset.bplaylistRangePosition;
+  });
+  document.querySelectorAll<HTMLElement>('[data-bplaylist-range-rail]').forEach(element => {
+    if (element.querySelector(':scope > [data-bplaylist-range]')) {
+      return;
+    }
+
+    element.style.position = element.dataset.bplaylistRangeRail ?? '';
+    delete element.dataset.bplaylistRangeRail;
+  });
 }

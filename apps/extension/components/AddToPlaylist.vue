@@ -148,7 +148,7 @@ async function saveNodes(nodes: PlaylistNode[]) {
     <ActionButton
       aria-label="添加到 BPlaylist"
       title="添加到 BPlaylist"
-      class="text-muted h-10 gap-1.5 px-0 py-0 text-sm whitespace-nowrap"
+      class="text-muted h-10 gap-1.5 px-3 py-0 text-sm whitespace-nowrap"
       @click="load"
       ><ListPlus :size="24" /><span>BPlaylist</span></ActionButton
     >

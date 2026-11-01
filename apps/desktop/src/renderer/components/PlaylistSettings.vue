@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import ActionButton from '@bplaylist/ui/ui/ActionButton.vue';
-import { Check, Settings2, Download, Upload, Pencil } from '@lucide/vue';
+import { Check, Settings2, Download, Upload, Pencil, Trash2 } from '@lucide/vue';
 import { onClickOutside, usePreferredReducedMotion } from '@vueuse/core';
 import { Motion } from 'motion-v';
 import { nextTick, shallowRef, useTemplateRef } from 'vue';
@@ -8,7 +8,7 @@ import { nextTick, shallowRef, useTemplateRef } from 'vue';
 import { rpc } from '../rpc.ts';
 import { useWorkspace } from '../stores/workspace.ts';
 
-const emit = defineEmits<{ rename: [] }>();
+const emit = defineEmits<{ rename: []; remove: [] }>();
 const workspace = useWorkspace();
 const root = useTemplateRef<HTMLElement>('root');
 const trigger = useTemplateRef<InstanceType<typeof ActionButton>>('trigger');
@@ -130,6 +130,18 @@ async function toggleFullscreen() {
           @click="rename"
         >
           <Pencil :size="13" />重命名播放列表
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          :disabled="workspace.busy"
+          class="text-foreground hover:bg-foreground/5 focus:bg-foreground/8 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-[11px] disabled:opacity-40"
+          @click="
+            close();
+            emit('remove');
+          "
+        >
+          <Trash2 :size="13" />删除播放列表
         </button>
         <div role="separator" class="bg-border mx-2 my-1 h-px" />
         <button

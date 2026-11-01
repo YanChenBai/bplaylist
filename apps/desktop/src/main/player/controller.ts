@@ -1,4 +1,5 @@
 import {
+  createPlaylist,
   emptySnapshot,
   flattenPlaylist,
   isBilibiliUrl,
@@ -313,6 +314,39 @@ export class PlaybackController {
     }
 
     return this.edit(document, revision);
+  }
+
+  async removePlaylist(id: string) {
+    this.getPlaylist(id);
+    const wasPlaying = id === this.playlist.id;
+
+    if (wasPlaying) {
+      await this.stop();
+    }
+
+    const remaining = this.library.list().filter(document => document.id !== id);
+
+    const fallback =
+      remaining.find(document => document.id === this.selectedId) ??
+      remaining[0] ??
+      createPlaylist();
+
+    if (!remaining.length) {
+      this.library.save(fallback);
+    }
+
+    if (wasPlaying) {
+      this.playlist = fallback;
+      this.library.setSetting('activePlaylist', fallback.id);
+    }
+
+    if (this.selectedId === id) {
+      this.selectedId = this.playlist.id;
+      this.library.setSetting('selectedPlaylist', this.selectedId);
+    }
+
+    this.library.remove(id);
+    this.revision++;
   }
 
   async replace(document: Playlist) {

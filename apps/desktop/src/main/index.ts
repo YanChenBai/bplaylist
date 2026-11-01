@@ -79,7 +79,10 @@ async function start() {
           return;
         }
 
-        if (input.key === 'F11' || (input.key === 'Escape' && chrome.state().immersive)) {
+        if (
+          input.key === 'F11' ||
+          (input.key === 'Escape' && contents.getType() === 'webview' && chrome.state().immersive)
+        ) {
           event.preventDefault();
           chrome.setImmersive(!chrome.state().immersive);
         }

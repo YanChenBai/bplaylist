@@ -1,0 +1,13 @@
+android {
+    compileSdkVersion 36
+    defaultConfig {
+        minSdkVersion 26
+        targetSdkVersion 36
+        versionCode 1
+        versionName "0.1.0"
+    }
+}
+
+afterEvaluate {
+    android.sourceSets.main.jniLibs.srcDirs += ["$projectDir/src/main/jniLibs"]
+}

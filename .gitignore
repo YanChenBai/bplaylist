@@ -44,3 +44,10 @@ apps/desktop/build/icon.ico
 .wxt/
 .output/
 apps/extension/public/icon/
+
+apps/mobile/platforms/
+apps/mobile/.ns-vite-build/
+apps/mobile/App_Resources/Android/src/main/jniLibs/
+crates/mobile-core/target/
+apps/mobile/App_Resources/Android/src/main/res/mipmap-*/
+apps/mobile/App_Resources/Android/src/main/res/drawable-nodpi/

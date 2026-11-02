@@ -9,6 +9,7 @@ export default defineConfig({
     description: '把 B 站视频、分 P 和跨集片段添加到桌面播放列表。',
     permissions: ['storage', 'scripting'],
     host_permissions: ['https://www.bilibili.com/*', 'http://127.0.0.1/*'],
+    optional_host_permissions: ['http://*/*'],
   },
   vite: () => ({
     plugins: [tailwindcss()],

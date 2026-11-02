@@ -2,7 +2,7 @@
   <title id="title">BPlaylist</title>
   <desc id="description">A solid soft white television with two antennas, a playlist and a play symbol. No outlines.</desc>
   <rect width="128" height="128" rx="29" fill="#111111"/>
-  <g transform="translate(10.24 10.24) scale(.84)">
+  <g transform="translate(15.36 15.36) scale(.76)">
   <g fill="#D6D6D6">
     <rect x="42" y="17" width="8" height="27" rx="4" transform="rotate(-38 46 30.5)"/>
     <rect x="78" y="17" width="8" height="27" rx="4" transform="rotate(38 82 30.5)"/>

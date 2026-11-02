@@ -1,0 +1,36 @@
+{
+  "name": "@bplaylist/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/main.ts",
+  "scripts": {
+    "dev": "vpx ../../scripts/mobile.ts run",
+    "build": "vpx ../../scripts/mobile.ts build",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@bplaylist/shared": "workspace:*",
+    "@nativescript/core": "9.1.3",
+    "nativescript-vue": "3.1.3",
+    "source-map-js": "^1.2.1",
+    "vue": "3.5.42"
+  },
+  "devDependencies": {
+    "@csstools/postcss-is-pseudo-class": "~5.0.1",
+    "@nativescript/android": "9.1.1",
+    "@nativescript/tailwind": "4.1.0",
+    "@nativescript/types": "9.1.4",
+    "@nativescript/vite": "8.0.21",
+    "@tailwindcss/postcss": "4.3.3",
+    "@vitejs/plugin-vue": "6.0.10",
+    "@vitejs/plugin-vue-jsx": "5.1.6",
+    "@vue/compiler-sfc": "3.5.42",
+    "nativescript": "9.1.2",
+    "postcss-preset-env": "^10.1.3",
+    "tailwindcss": "4.3.3",
+    "typescript": "npm:typescript-native-bridge@6.0.3-bridge.19.tsgo.7.0.2",
+    "vite": "catalog:",
+    "vue-tsc": "3.3.13"
+  }
+}

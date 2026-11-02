@@ -311,18 +311,21 @@ function updateRangeOverlay(range: PlaybackRange | null | undefined, duration: n
 
 function rangeTrackOverlay(track: HTMLElement) {
   const foreground = track.querySelector<HTMLElement>(
-    '.bui-bar-progress, .bpx-player-progress-schedule, .bpx-player-shadow-progress-schedule, .bilibili-player-video-progress-now',
+    '.bui-bar-progress, .bpx-player-progress-schedule-current, .bpx-player-shadow-progress-schedule, .bilibili-player-video-progress-now',
   );
 
   const rail = foreground?.parentElement ?? track;
 
   if (!rail.hasAttribute('data-bplaylist-range-rail')) {
     rail.dataset.bplaylistRangeRail = rail.style.position;
+    rail.dataset.bplaylistRangeIsolation = rail.style.isolation;
   }
 
   if (getComputedStyle(rail).position === 'static') {
     rail.style.position = 'relative';
   }
+
+  rail.style.isolation = 'isolate';
 
   let marker = rail.querySelector<HTMLElement>(':scope > [data-bplaylist-range]');
 
@@ -385,6 +388,8 @@ function restoreRangeLayers() {
     }
 
     element.style.position = element.dataset.bplaylistRangeRail ?? '';
+    element.style.isolation = element.dataset.bplaylistRangeIsolation ?? '';
+    delete element.dataset.bplaylistRangeIsolation;
     delete element.dataset.bplaylistRangeRail;
   });
 }

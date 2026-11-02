@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+@source './';
+
+@theme {
+  --font-mono: monospace;
+  --color-surface: #0e0e0e;
+  --color-panel: #111111;
+  --color-raised: #1b1b1b;
+  --color-border: #262626;
+  --color-foreground: #c4c4c4;
+  --color-heading: #e5e5e5;
+  --color-muted: #a3a3a3;
+  --color-dim: #737373;
+  --color-accent: #cccccc;
+}
+
+.light {
+  --color-surface: #fafafa;
+  --color-panel: #ffffff;
+  --color-raised: #f0f0f0;
+  --color-border: #dedede;
+  --color-foreground: #383838;
+  --color-heading: #171717;
+  --color-muted: #626262;
+  --color-dim: #777777;
+  --color-accent: #333333;
+}
+
+Button {
+  android-elevation: 0;
+  android-dynamic-elevation-offset: 0;
+}

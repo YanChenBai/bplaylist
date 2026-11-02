@@ -1,0 +1,17 @@
+diff --git a/lib/services/bundler/bundler-compiler-service.js b/lib/services/bundler/bundler-compiler-service.js
+index 943d8a7..a492a65 100644
+--- a/lib/services/bundler/bundler-compiler-service.js
++++ b/lib/services/bundler/bundler-compiler-service.js
+@@ -586,7 +586,11 @@ class BundlerCompilerService extends events_1.EventEmitter {
+                 paths: [projectData.projectDir],
+             });
+             if (packagePath) {
+-                return path.resolve(packagePath, "bin", "vite.js");
++                const executable = path.resolve(packagePath, "bin", "vite.js");
++                if (require("fs").existsSync(executable)) {
++                    return executable;
++                }
++                return path.resolve(packagePath, "dist", "vite", "node", "cli.js");
+             }
+         }
+         else if (this.isModernBundler(projectData)) {

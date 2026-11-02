@@ -49,6 +49,16 @@ async function test() {
       : { endpoint: endpoint.value, token: token.value };
 
     const connection = bridgeConnectionSchema.parse(source);
+    const host = new URL(connection.endpoint);
+
+    if (host.hostname !== '127.0.0.1') {
+      const granted = await browser.permissions.request({ origins: [`${host.origin}/*`] });
+
+      if (!granted) {
+        throw new Error('需要允许插件连接此设备地址');
+      }
+    }
+
     const playlists = await request({ action: 'connect', connection }, playlistOptionsSchema);
     endpoint.value = connection.endpoint;
     token.value = connection.token;
@@ -74,7 +84,7 @@ async function test() {
       /></ActionButton>
     </header>
     <p class="text-muted mb-4 leading-6">
-      桌面端 → 顶部连接按钮 → 连接浏览器插件，复制连接信息并粘贴。
+      桌面端或安卓端 → 连接浏览器插件，复制连接信息并粘贴。连接手机时需处于同一局域网。
     </p>
     <form class="grid gap-4" @submit.prevent="test">
       <TextField

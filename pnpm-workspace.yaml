@@ -1,7 +1,12 @@
 packages:
   - apps/*
   - packages/*
+patchedDependencies:
+  nativescript@9.1.2: patches/nativescript@9.1.2.patch
 allowBuilds:
+  '@nativescript/core': true
+  '@parcel/watcher': true
+  nativescript: true
   electron: true
   electron-winstaller: true
   esbuild: true

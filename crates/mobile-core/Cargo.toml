@@ -1,0 +1,25 @@
+[package]
+name = "bplaylist-mobile"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "bridge-host"
+path = "src/bin/bridge-host.rs"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8"
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+subtle = "2"
+tiny_http = "0.12"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"

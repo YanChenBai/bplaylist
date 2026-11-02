@@ -46,7 +46,7 @@ async function handleMessage(
   const connection = bridgeConnectionSchema.safeParse(stored.connection);
 
   if (!connection.success) {
-    throw new Error('尚未连接桌面端，请点击浏览器工具栏的 BPlaylist 图标配置连接');
+    throw new Error('尚未连接 BPlaylist，请点击浏览器工具栏图标配置连接');
   }
 
   const api = client(connection.data);
@@ -123,11 +123,11 @@ export default defineBackground(() => {
       let message = error instanceof Error ? error.message : String(error);
 
       if (error instanceof ORPCError && error.status === 401) {
-        message = '连接密钥已失效，请从桌面端重新复制连接信息';
+        message = '连接密钥已失效，请从 BPlaylist 重新复制连接信息';
       }
 
       if (/fetch|network|abort|timeout/i.test(message)) {
-        message = '无法连接桌面端，请确认 BPlaylist 已启动，并检查插件连接信息';
+        message = '无法连接设备，请确认 BPlaylist 已启动，并检查网络和连接信息';
       }
 
       return { ok: false, error: message };

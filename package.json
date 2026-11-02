@@ -10,6 +10,9 @@
   },
   "type": "module",
   "scripts": {
+    "check:android-bridge": "vpx scripts/check-mobile-bridge.ts",
+    "dev:android": "vpx scripts/mobile.ts run",
+    "build:android": "vpx scripts/mobile.ts build",
     "dev": "vp run @bplaylist/desktop#dev",
     "build": "vp run @bplaylist/desktop#build",
     "typecheck": "vp exec tsc -p scripts/tsconfig.json && vp run @bplaylist/desktop#typecheck && vp run @bplaylist/sync#typecheck && vp run @bplaylist/extension#typecheck",

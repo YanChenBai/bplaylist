@@ -16,6 +16,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Windows-desktop-d6d6d6?style=flat-square&labelColor=171717" alt="Windows desktop" />
+  <img src="https://img.shields.io/badge/Android-mobile-d6d6d6?style=flat-square&labelColor=171717" alt="Android mobile" />
   <img src="https://img.shields.io/badge/Vue-3-d6d6d6?style=flat-square&labelColor=171717" alt="Vue 3" />
   <img src="https://img.shields.io/badge/Electron-45-d6d6d6?style=flat-square&labelColor=171717" alt="Electron 45" />
 </p>
@@ -35,7 +36,7 @@
 | **把画面留给视频**       | 自动网页全屏，随时折叠侧栏。沉浸模式隐藏顶部栏，鼠标移到窗口顶部即可找回导航和窗口按钮。            |
 | **列表和进度一起带走**   | JSON 导入导出；也可以连接自己的 Cloudflare D1，在不同设备间手动上传、下载列表和进度。               |
 | **在浏览器里顺手收录**   | 在 B 站分享按钮旁点击 BPlaylist，自动带入当前分集与播放时间，选择列表和分组后直接添加。             |
-| **黑白两种外观**         | 桌面端与浏览器插件都支持黑白主题，自动记住选择。                                                    |
+| **黑白两种外观**         | 桌面端、安卓端与浏览器插件都支持黑白主题，自动记住选择。                                            |
 
 ## 开始使用
 
@@ -56,6 +57,16 @@ P1 18:00 → P1 结尾 → P2 00:00 → P2 36:00 → 下一项
 勾选 **跨分 P / 分集播放** 即可选择结束分集。结束时间留空，播放到末集结尾。
 
 列表名称旁的设置菜单提供导入、导出、重命名和自动网页全屏开关。主题切换和浏览器插件连接位于顶部折叠按钮旁。标题栏的四角按钮或 `F11` 进入沉浸模式，`Esc` / `F11` 退出；进入时自动折叠侧栏，移到顶部后可以重新展开。
+
+### 在 Android 上使用
+
+竖屏时网页在上、播放列表在下，横屏时切换为左右布局，旋转时保留播放器。支持手机和平板，界面避让刘海和系统栏；长按播放项可编辑、调整顺序或删除。
+
+播放列表设置提供系统文件导入、导出，与 PC 端使用同一份 JSON 格式，包含分组、跨集片段和播放进度。网页默认放大显示，仍可通过设置里的 **网页缩放** 调整。
+
+进入沉浸模式会隐藏顶部栏和侧栏。右上角悬浮按钮可退出沉浸或重新展开侧栏，3 秒无操作后自动淡出，点按原位置即可唤回；展开侧栏后，悬浮按钮会避开列表设置和添加按钮。
+
+播放状态接入系统媒体中心，通知和媒体控件复用应用 Logo，可从系统控件或耳机控制播放、暂停、切项和进度。列表设置中的 **连接浏览器插件** 支持同一局域网内的电脑向手机添加内容。
 
 ### 从浏览器添加
 
@@ -109,9 +120,26 @@ vp run dev
 vp run package
 ```
 
+生成的 Windows 文件位于 `apps/desktop/release/`。共用 Logo 的 SVG 源文件会在开发和构建时自动生成各端应用图标。
+
 浏览器插件开发使用 `vp run dev:extension`，生成 ZIP 使用 `vp run zip:extension`。
 
-生成的文件位于 `apps/desktop/release/`。Logo 的 SVG 源文件会在开发和构建时自动生成应用图标。
+### Android
+
+安卓端使用 NativeScript 9 + Vue、Kotlin 和 Rust。竖屏时网页在上、播放列表在下，横屏切换为左右布局并保留播放器；支持平板、黑白主题、沉浸显示及刘海屏安全边距。播放状态接入 Android 媒体会话，可从系统媒体控件和耳机控制播放、切项与进度。
+
+安装 Android SDK、NDK、JDK 21+ 和 Rust Android target 后构建 ARM64 APK：
+
+```sh
+rustup target add aarch64-linux-android
+vp run build:android
+```
+
+APK 位于 `release/bplaylist-android-arm64-v8a-debug.apk`，目前使用调试签名。开发运行使用 `vp run dev:android`。可通过 `ANDROID_HOME`、`ANDROID_NDK_HOME`、`JAVA_HOME` 指定工具路径。模拟器可设置 `BPLAYLIST_ANDROID_ABI=x86` 或 `x86_64`，并安装对应的 Rust target。
+
+手机与电脑连接同一局域网，在安卓端播放列表设置中选择 **连接浏览器插件**，复制手机 IP 对应的连接信息。插件首次连接时会请求该地址的访问权限。HTTP 服务随应用进程启动，使用同一套列表、分组和追加接口；应用被系统终止或强制停止后需重新打开。安卓端通过系统文件选择器导入、保存播放列表 JSON 文件，与 PC 端格式互通，包含分组、视频片段及播放进度；也可手动连接 Cloudflare 服务。
+
+接口兼容检查使用 `vp run check:android-bridge`，不需要连接手机。
 
 <details>
 <summary>检查与测试</summary>

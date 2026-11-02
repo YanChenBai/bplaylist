@@ -48,4 +48,61 @@ await Promise.all(
       .toFile(fileURLToPath(new URL(`${size}.png`, extensionDirectory))),
   ),
 );
+
+const androidResources = new URL(
+  '../apps/mobile/App_Resources/Android/src/main/res/',
+  import.meta.url,
+);
+
+const densities = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
+
+await Promise.all(
+  Object.entries(densities).map(async ([density, size]) => {
+    const directory = new URL(`mipmap-${density}/`, androidResources);
+    await mkdir(directory, { recursive: true });
+    await sharp(source)
+      .resize(size, size)
+      .png()
+      .toFile(fileURLToPath(new URL('ic_launcher.png', directory)));
+  }),
+);
+
+const drawableDirectory = new URL('drawable-nodpi/', androidResources);
+await mkdir(drawableDirectory, { recursive: true });
+await sharp(source)
+  .resize(432, 432)
+  .png()
+  .toFile(fileURLToPath(new URL('ic_launcher_foreground.png', drawableDirectory)));
+
+// 通知栏只读取透明度：由同一份 Logo 的明暗区域生成单色蒙版。
+const pixels = await sharp(source)
+  .resize(96, 96)
+  .flatten({ background: '#111111' })
+  .greyscale()
+  .raw()
+  .toBuffer();
+
+const mask = Buffer.alloc(96 * 96 * 4);
+
+for (let index = 0; index < pixels.length; index++) {
+  mask[index * 4] = 214;
+  mask[index * 4 + 1] = 214;
+  mask[index * 4 + 2] = 214;
+  mask[index * 4 + 3] = Math.max(0, Math.min(255, Math.round(((pixels[index]! - 17) * 255) / 197)));
+}
+
+await sharp(mask, { raw: { width: 96, height: 96, channels: 4 } })
+  .png()
+  .toFile(fileURLToPath(new URL('ic_notification.png', drawableDirectory)));
+
+const adaptiveDirectory = new URL('mipmap-anydpi-v26/', androidResources);
+await mkdir(adaptiveDirectory, { recursive: true });
+await writeFile(
+  new URL('ic_launcher.xml', adaptiveDirectory),
+  `<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+  <background android:drawable="@color/bplaylist_icon_background" />
+  <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>\n`,
+);
+
 process.stdout.write('Generated application icons from docs/assets/logo.svg.\n');

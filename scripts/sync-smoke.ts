@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,10 +12,18 @@ import type { Playlist } from '../packages/shared/src/index.ts';
 import { playlistPatch, syncDocumentSchema, syncPageSchema } from '../packages/shared/src/sync.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const cwd = join(root, 'apps/sync');
-process.chdir(cwd);
-
 const persistence = await mkdtemp(join(tmpdir(), 'bplaylist-d1-'));
+const template = process.argv.includes('--template');
+const cwd = template ? join(persistence, 'template') : join(root, 'apps/sync');
+
+if (template) {
+  await cp(join(root, 'templates/cloudflare'), cwd, {
+    recursive: true,
+    filter: path => !path.includes('node_modules'),
+  });
+}
+
+process.chdir(cwd);
 const token = 'local-integration-test';
 const run = promisify(execFile);
 let worker: Awaited<ReturnType<typeof unstable_dev>> | undefined;
@@ -25,18 +33,18 @@ try {
   await run(
     process.execPath,
     [
-      join(cwd, 'node_modules/wrangler/bin/wrangler.js'),
+      join(root, 'node_modules/wrangler/bin/wrangler.js'),
       'd1',
       'migrations',
       'apply',
-      'bplaylist',
+      'DB',
       '--local',
       '--persist-to',
       persistence,
     ],
     { cwd, env: { ...process.env, CI: 'true' }, timeout: 30000 },
   );
-  worker = await unstable_dev(join(cwd, 'src/index.ts'), {
+  worker = await unstable_dev(join(cwd, template ? 'worker.js' : 'src/index.ts'), {
     config: join(cwd, 'wrangler.jsonc'),
     local: true,
     persistTo: persistence,
@@ -138,6 +146,7 @@ try {
   );
 } finally {
   await worker?.stop();
+  process.chdir(root);
   await rm(persistence, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 }).catch(
     () => {},
   );

@@ -23,6 +23,8 @@
     "test:live": "vpx scripts/live-smoke.ts",
     "test:fullscreen": "vpx scripts/fullscreen-smoke.ts",
     "test:sync": "vpx scripts/sync-smoke.ts",
+    "build:cloudflare-template": "vpx scripts/build-cloudflare-template.ts",
+    "test:sync:template": "vpx scripts/sync-smoke.ts --template",
     "dev:extension": "vp run @bplaylist/extension#dev",
     "build:extension": "vp run @bplaylist/extension#build",
     "zip:extension": "vp run @bplaylist/extension#zip",

@@ -5,7 +5,7 @@ export default defineConfig({
     '*': 'vp check --fix',
   },
   fmt: {
-    ignorePatterns: ['packages/native/binding/**'],
+    ignorePatterns: ['packages/native/binding/**', 'templates/cloudflare/worker.js'],
     singleQuote: true,
     sortImports: true,
     sortTailwindcss: true,
@@ -15,6 +15,7 @@ export default defineConfig({
     printWidth: 100,
   },
   lint: {
+    ignorePatterns: ['templates/cloudflare/worker.js'],
     jsPlugins: [
       { name: 'vite-plus', specifier: 'vite-plus/oxlint-plugin' },
       { name: 'stylistic', specifier: '@stylistic/eslint-plugin' },

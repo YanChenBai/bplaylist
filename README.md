@@ -21,6 +21,10 @@
   <img src="https://img.shields.io/badge/Electron-45-d6d6d6?style=flat-square&labelColor=171717" alt="Electron 45" />
 </p>
 
+<p align="center">
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/YanChenBai/bplaylist/tree/main/templates/cloudflare"><img src="https://deploy.workers.cloudflare.com/button" alt="部署个人云端同步服务" /></a>
+</p>
+
 收藏了一场录播里的几个活动、一套教程里的几节课，或者散落在不同分 P 的精彩片段？把它们放进 BPlaylist，按你安排的顺序接着看。
 
 左边是熟悉的 B 站，右边是你的播放列表。登录、弹幕、清晰度和播放暂停，继续使用 B 站播放器。
@@ -81,13 +85,17 @@ P1 18:00 → P1 结尾 → P2 00:00 → P2 36:00 → 下一项
 <details>
 <summary>可选：让列表通过 Cloudflare D1 在设备间流转</summary>
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/YanChenBai/bplaylist/tree/main/templates/cloudflare)
+
+点击按钮，在自己的 Cloudflare 账号中创建同步服务。部署页面会创建 D1 数据库，并提示设置 `SYNC_TOKEN`；请填写至少 32 位随机令牌。保留预填的部署命令，它会自动初始化数据库。部署成功后，将 Worker 地址和相同令牌填入应用。
+
 部署自己的 Worker 后，在标题栏的云图标中填写服务地址和令牌；安卓端在播放列表设置中选择 **云端同步**。连接后默认开启自动同步，也可以关闭后只使用 **立即同步**。
 
 所有播放列表、分组和播放进度一起同步。默认每 **5 分钟**检查一次云端变化，可改为 **15 / 30 分钟**；列表编辑后等待 **1 分钟**批量同步，播放进度按所选间隔上传。启动、回到前台和网络恢复时检查同步，具有 **5 分钟冷却**。手动同步不受冷却限制。
 
 离线修改保存在本地，失败后自动退避重试。不同条目和不同字段的修改会自动合并，同一字段按云端确认顺序处理；删除会保留记录，避免离线设备将旧条目重新带回。片段时间和跨集来源作为整体合并；播放进度按最近开始的播放会话合并，支持主动回看，后台同步不会跳转当前设备的播放位置。
 
-在 `apps/sync` 中执行：
+也可以使用命令行部署。在 `apps/sync` 中执行：
 
 ```sh
 vp exec wrangler d1 create bplaylist
@@ -104,6 +112,8 @@ vp exec wrangler deploy
 一个 Worker 和令牌对应一个个人资料库，当前不提供账号系统。界面显示同步状态和上次成功时间；同步期间可继续编辑。已部署的服务升级时，需要先重新执行数据库迁移，再部署 Worker，原有列表会加入增量同步记录。
 
 桌面端使用系统安全存储、安卓端使用 Android Keystore 加密保存连接信息。导出文件不包含令牌和 B 站 Cookie。
+
+一键部署使用 `templates/cloudflare` 中的独立模板。修改 Worker 或共享数据结构后，在仓库根目录运行 `vp run build:cloudflare-template`，将生成的模板与源码一起提交。
 
 </details>
 

@@ -108,6 +108,45 @@ describe('主进程顺序播放', () => {
     vi.useRealTimers();
   });
 
+  it('后台同步保留当前播放位置和条目，同时更新列表结构', async () => {
+    await player.play('a');
+    await vi.advanceTimersByTimeAsync(600);
+    guest.snapshot.position = 15;
+    await vi.advanceTimersByTimeAsync(500);
+    player.persist();
+    const incoming = structuredClone(player.playlist);
+    incoming.title = '云端改名';
+    incoming.activeItemId = 'b';
+    incoming.progress.a = {
+      position: 19,
+      duration: 100,
+      completed: false,
+      updatedAt: new Date().toISOString(),
+    };
+    const commands = guest.commands.length;
+    player.applySync(incoming.id, incoming);
+    expect(player.playlist.title).toBe('云端改名');
+    expect(player.playlist.activeItemId).toBe('a');
+    expect(player.playlist.progress.a!.position).toBe(15);
+    expect(player.running).toBe(true);
+    expect(guest.commands).toHaveLength(commands);
+  });
+
+  it('云端删除正在播放的条目会暂停并保留有效列表', async () => {
+    await player.play('a');
+    await vi.advanceTimersByTimeAsync(600);
+    const incoming = structuredClone(player.playlist);
+    incoming.nodes = incoming.nodes.filter(node => node.id !== 'a');
+    incoming.activeItemId = null;
+    delete incoming.progress.a;
+    player.applySync(incoming.id, incoming);
+    expect(player.running).toBe(false);
+    expect(guest.commands.at(-1)?.action).toBe('pause');
+    player.applySync(incoming.id, null);
+    expect(library.get(incoming.id)).toBeUndefined();
+    expect(library.get(player.selectedPlaylist.id)).toBeDefined();
+  });
+
   it('浏览和编辑其他列表不暂停原视频，原列表继续自动播放', async () => {
     const originalId = player.playlist.id;
     const target = createPlaylist('另一个列表');

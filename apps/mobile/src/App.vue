@@ -13,7 +13,7 @@ import { animate, enter } from './motion.ts';
 import { draftVideo, useWorkspace } from './workspace.ts';
 
 const workspace = useWorkspace();
-const { playlist, theme, collapsed, immersive, snapshot, rows, error } = workspace;
+const { playlist, theme, collapsed, immersive, snapshot, rows, error, search } = workspace;
 const editor = shallowRef<VideoItem | null>(null);
 const width = shallowRef(Screen.mainScreen.widthDIPs);
 const height = shallowRef(Screen.mainScreen.heightDIPs);
@@ -128,14 +128,17 @@ function sidebarLoaded(event: EventData) {
 }
 
 onUnmounted(() => {
+  workspace.stop();
+
   if (timer) {
     clearInterval(timer);
   }
 });
 
-async function addItem() {
+async function addItem(parentId: string | null = null) {
   if (snapshot.value.available) {
     const draft = draftVideo(snapshot.value.url);
+    draft.parentId = parentId;
     draft.title = snapshot.value.title;
     draft.partTitle = snapshot.value.partTitle;
     editor.value = draft;
@@ -150,7 +153,7 @@ async function addItem() {
 
   if (result.result) {
     try {
-      editor.value = draftVideo(result.text);
+      editor.value = { ...draftVideo(result.text), parentId };
     } catch {
       error.value = '请输入有效的 B 站视频链接';
     }
@@ -292,7 +295,7 @@ function editItem(value: VideoItem) {
           v-if="sidebarVisible"
           :col="landscape ? 1 : 0"
           :row="landscape ? 0 : 1"
-          rows="auto,auto,*,auto"
+          rows="auto,auto,auto,*,auto"
           class="bg-panel border-border border-l"
           @loaded="sidebarLoaded"
           :paddingRight="landscape ? insets.right : 0"
@@ -354,10 +357,17 @@ function editItem(value: VideoItem) {
               accessibilityLabel="添加分组"
               @tap="workspace.addGroup"
             />
-            <IconButton col="4" name="plus" small accessibilityLabel="添加视频" @tap="addItem" />
+            <IconButton col="4" name="plus" small accessibilityLabel="添加视频" @tap="addItem()" />
           </GridLayout>
-          <ListView
+          <TextField
             row="2"
+            v-model="search"
+            hint="搜索标题、别名、分集、链接…"
+            accessibilityLabel="搜索播放列表"
+            class="text-foreground mx-3 mb-2 text-[length:12]"
+          />
+          <ListView
+            row="3"
             :items="rows"
             separatorColor="transparent"
             class="bg-transparent"
@@ -367,21 +377,22 @@ function editItem(value: VideoItem) {
               <PlaylistRow
                 :item="item"
                 @activate="activateRow"
+                @add="addItem"
                 @menu="node => workspace.itemMenu(node, editItem)"
               />
             </template>
           </ListView>
           <Label
             v-if="!rows.length"
-            row="2"
-            text="添加视频，开始你的播放列表"
+            row="3"
+            :text="search.trim() ? '没有匹配的条目' : '添加视频，开始你的播放列表'"
             class="text-dim m-4 text-[length:11]"
             horizontalAlignment="center"
             verticalAlignment="center"
           />
           <Label
             v-if="error"
-            row="3"
+            row="4"
             :text="error"
             class="bg-border text-foreground p-2.5"
             textWrap="true"

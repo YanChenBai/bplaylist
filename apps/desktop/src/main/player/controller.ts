@@ -48,6 +48,7 @@ export class PlaybackController {
   private fullscreenPending = true;
   private disposed = false;
   private tracking = false;
+  private sessionStartedAt = new Date().toISOString();
 
   constructor(private library: Library) {
     const documents = library.list();
@@ -138,6 +139,10 @@ export class PlaybackController {
   }
 
   async control(command: Command) {
+    if (command.action === 'play' || command.action === 'seek') {
+      this.sessionStartedAt = new Date().toISOString();
+    }
+
     if (command.action === 'pause') {
       this.running = false;
       this.pending = undefined;
@@ -176,6 +181,7 @@ export class PlaybackController {
     const position = canResume ? Math.max(segments[index]!.start, progress.position) : item.start;
 
     this.playlist.activeItemId = id;
+    this.sessionStartedAt = new Date().toISOString();
 
     if (progress) {
       progress.completed = false;
@@ -416,6 +422,64 @@ export class PlaybackController {
     }
   }
 
+  applySync(id: string, document: Playlist | null) {
+    if (!document) {
+      if (this.playlist.id === id) {
+        this.running = false;
+        this.pending = undefined;
+        this.tracking = false;
+        this.generation++;
+        void this.execute({ action: 'pause' }).catch(error => {
+          this.error = String(error);
+        });
+        this.playlist = this.library.list().find(item => item.id !== id) ?? createPlaylist();
+        this.library.save(this.playlist);
+        this.library.setSetting('activePlaylist', this.playlist.id);
+      }
+
+      this.library.remove(id);
+
+      if (this.selectedId === id) {
+        this.selectedId = this.playlist.id;
+        this.library.setSetting('selectedPlaylist', this.selectedId);
+      }
+    } else {
+      const incoming = playlistSchema.parse(document);
+
+      if (id === this.playlist.id) {
+        const activeId = this.playlist.activeItemId;
+        const before = this.playlist.nodes.find(node => node.id === activeId);
+        const after = incoming.nodes.find(node => node.id === activeId);
+
+        if (
+          (this.tracking || this.pending) &&
+          playbackSource(before) === playbackSource(after) &&
+          after
+        ) {
+          incoming.activeItemId = activeId;
+
+          if (activeId && this.playlist.progress[activeId]) {
+            incoming.progress[activeId] = this.playlist.progress[activeId]!;
+          }
+        } else if (playbackSource(before) !== playbackSource(after)) {
+          this.running = false;
+          this.pending = undefined;
+          this.tracking = false;
+          this.generation++;
+          void this.execute({ action: 'pause' }).catch(error => {
+            this.error = String(error);
+          });
+        }
+
+        this.playlist = incoming;
+      }
+
+      this.library.save(incoming);
+    }
+
+    this.revision++;
+  }
+
   setFullscreen(value: boolean) {
     this.autoFullscreen = value;
     this.library.setSetting('autoFullscreen', String(value));
@@ -440,6 +504,7 @@ export class PlaybackController {
 
     const previous = this.playlist.progress[item.id];
     this.playlist.progress[item.id] = {
+      sessionStartedAt: this.sessionStartedAt,
       ...(item.continuation ? { segmentIndex: this.segmentIndex } : {}),
       position: this.snapshot.position,
       duration: this.snapshot.duration,
@@ -522,6 +587,7 @@ export class PlaybackController {
     if (this.segmentIndex < segments.length - 1) {
       const nextIndex = this.segmentIndex + 1;
       this.playlist.progress[item.id] = {
+        sessionStartedAt: this.sessionStartedAt,
         segmentIndex: nextIndex,
         position: 0,
         duration: 0,
@@ -538,6 +604,7 @@ export class PlaybackController {
 
   private completeItem(item: VideoItem, end: number | null) {
     this.playlist.progress[item.id] = {
+      sessionStartedAt: this.sessionStartedAt,
       ...(item.continuation ? { segmentIndex: this.segmentIndex } : {}),
       position: Math.min(this.snapshot.position, end ?? this.snapshot.duration),
       duration: this.snapshot.duration,

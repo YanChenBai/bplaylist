@@ -56,6 +56,32 @@ object MobileHost {
 
     @JvmStatic fun call(method: String, payload: String): String = NativeCore.call(method, payload)
 
+    private fun cloudKey(): javax.crypto.SecretKey {
+        val store = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (store.getKey("bplaylist-cloud", null) as? javax.crypto.SecretKey)?.let { return it }
+        val generator = javax.crypto.KeyGenerator.getInstance("AES", "AndroidKeyStore")
+        generator.init(android.security.keystore.KeyGenParameterSpec.Builder(
+            "bplaylist-cloud", android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT
+        ).setBlockModes("GCM").setEncryptionPaddings("NoPadding").build())
+        return generator.generateKey()
+    }
+
+    @JvmStatic fun saveCloudConfig(value: String) {
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, cloudKey())
+        val encrypted = cipher.iv + cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+        check(application!!.getSharedPreferences("cloud", Context.MODE_PRIVATE).edit()
+            .putString("config", android.util.Base64.encodeToString(encrypted, android.util.Base64.NO_WRAP)).commit())
+    }
+
+    @JvmStatic fun cloudConfig(): String {
+        val encoded = application!!.getSharedPreferences("cloud", Context.MODE_PRIVATE).getString("config", null) ?: return ""
+        val encrypted = android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP)
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.DECRYPT_MODE, cloudKey(), javax.crypto.spec.GCMParameterSpec(128, encrypted.copyOfRange(0, 12)))
+        return String(cipher.doFinal(encrypted.copyOfRange(12, encrypted.size)), Charsets.UTF_8)
+    }
+
     @JvmStatic fun setScript(value: String) { script = value }
 
     @JvmStatic fun createBrowser(activity: Activity): WebView {

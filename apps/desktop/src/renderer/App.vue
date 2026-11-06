@@ -16,7 +16,7 @@ import {
   PanelRightOpen,
   RefreshCw,
 } from '@lucide/vue';
-import { useIntervalFn, useLocalStorage, useTimeoutFn } from '@vueuse/core';
+import { useEventListener, useIntervalFn, useLocalStorage, useTimeoutFn } from '@vueuse/core';
 import { ref, useTemplateRef, watch } from 'vue';
 
 import BrowserDialog from './components/BrowserDialog.vue';
@@ -29,6 +29,9 @@ import { useWorkspace } from './stores/workspace.ts';
 
 const collapsed = useLocalStorage('bplaylist:panel-collapsed', false);
 const workspace = useWorkspace();
+useEventListener(window, 'online', () => {
+  void rpc.remote.wake().catch(error => console.error('恢复同步失败', error));
+});
 const api = { rpc };
 const browser = useTemplateRef<InstanceType<typeof BrowserPane>>('browser');
 const address = ref('https://www.bilibili.com');
@@ -192,7 +195,7 @@ function navigate() {
             @click="toggleImmersive"
             ><Maximize :size="14" /></ActionButton
           ><ActionButton
-            aria-label="远程导入导出"
+            aria-label="云端同步"
             class="h-[39px] w-[46px] rounded-none border-0 p-0 active:scale-100"
             @click="remoteOpen = true"
             ><Cloud :size="14" /></ActionButton

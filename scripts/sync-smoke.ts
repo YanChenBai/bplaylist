@@ -8,6 +8,9 @@ import { promisify } from 'node:util';
 
 import { unstable_dev } from 'wrangler';
 
+import type { Playlist } from '../packages/shared/src/index.ts';
+import { playlistPatch, syncDocumentSchema, syncPageSchema } from '../packages/shared/src/sync.ts';
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const cwd = join(root, 'apps/sync');
 process.chdir(cwd);
@@ -16,6 +19,7 @@ const persistence = await mkdtemp(join(tmpdir(), 'bplaylist-d1-'));
 const token = 'local-integration-test';
 const run = promisify(execFile);
 let worker: Awaited<ReturnType<typeof unstable_dev>> | undefined;
+type WorkerResponse = Awaited<ReturnType<Awaited<ReturnType<typeof unstable_dev>>['fetch']>>;
 
 try {
   await run(
@@ -45,7 +49,7 @@ try {
     },
   });
 
-  const playlist = {
+  const playlist: Playlist = {
     version: 1,
     id: 'd1-smoke',
     title: '远程播放列表',
@@ -82,8 +86,55 @@ try {
   }[];
 
   assert.equal(list[0]!.title, playlist.title);
+
+  const page = syncPageSchema.parse(
+    await (await worker.fetch('/sync?cursor=0', { headers })).json(),
+  );
+
+  assert.equal(page.documents[0]!.id, playlist.id);
+  assert.ok(page.cursor > 0);
+
+  const mutation = {
+    id: playlist.id,
+    mutationId: crypto.randomUUID(),
+    patch: playlistPatch(playlist, { ...playlist, title: '增量更新' }),
+  };
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response: WorkerResponse = await worker.fetch('/sync', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(mutation),
+    });
+
+    assert.equal(response.status, 200, await response.clone().text());
+    const document = syncDocumentSchema.parse(await response.json());
+    assert.equal(document.revision, 2);
+    assert.equal(document.playlist!.title, '增量更新');
+  }
+
+  const changes = syncPageSchema.parse(
+    await (await worker.fetch(`/sync?cursor=${page.cursor}`, { headers })).json(),
+  );
+
+  assert.equal(changes.documents.length, 1);
+  assert.equal(changes.documents[0]!.revision, 2);
+
+  const deletion = await worker.fetch('/sync', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      id: playlist.id,
+      mutationId: crypto.randomUUID(),
+      patch: playlistPatch(playlist, null),
+    }),
+  });
+
+  assert.equal(deletion.status, 200);
+  assert.equal(syncDocumentSchema.parse(await deletion.json()).playlist, null);
+  assert.equal((await worker.fetch(`/playlists/${playlist.id}`, { headers })).status, 404);
   process.stdout.write(
-    'Local workerd + D1 smoke passed: migration, authentication, upload, download, list, conflict.\n',
+    'Local workerd + D1 smoke passed: migrations, authentication, legacy compatibility, incremental feed, idempotent mutation, deletion.\n',
   );
 } finally {
   await worker?.stop();

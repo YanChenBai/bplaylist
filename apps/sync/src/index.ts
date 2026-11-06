@@ -1,5 +1,10 @@
 import { archiveSchema } from '@bplaylist/shared';
+import type { Playlist } from '@bplaylist/shared';
+import type { D1Database } from '@cloudflare/workers-types';
 import { z } from 'zod';
+
+import { applyPlaylistPatch, playlistPatch } from '../../../packages/shared/src/sync.ts';
+import { syncRequest } from './sync.ts';
 
 interface Env {
   DB: D1Database;
@@ -82,9 +87,13 @@ export default {
 
     const url = new URL(request.url);
 
+    if (url.pathname === '/sync') {
+      return syncRequest(request, env.DB);
+    }
+
     if (url.pathname === '/playlists' && request.method === 'GET') {
       const { results } = await env.DB.prepare(
-        'SELECT id, title, revision, updated_at AS updatedAt FROM playlists ORDER BY updated_at DESC',
+        'SELECT id, title, revision, updated_at AS updatedAt FROM playlists WHERE deleted = 0 ORDER BY updated_at DESC',
       ).all();
 
       return Response.json(results);
@@ -99,7 +108,9 @@ export default {
     const id = decodeURIComponent(match[1]!);
 
     if (request.method === 'GET') {
-      const row = await env.DB.prepare('SELECT document, revision FROM playlists WHERE id = ?')
+      const row = await env.DB.prepare(
+        'SELECT document, revision FROM playlists WHERE id = ? AND deleted = 0',
+      )
         .bind(id)
         .first<{ document: string; revision: number }>();
 
@@ -132,25 +143,59 @@ async function upload(request: Request, env: Env, id: string): Promise<Response>
     return Response.json({ error: 'Playlist ID mismatch' }, { status: 400 });
   }
 
-  const { playlist } = input.archive;
-  const document = JSON.stringify(input.archive);
   const updatedAt = new Date().toISOString();
 
-  // 条件更新在 D1 中原子执行，避免两台设备相互覆盖。
-  const result =
-    input.expectedRevision === 0
-      ? await env.DB.prepare(
-          'INSERT INTO playlists (id, title, document, revision, updated_at) VALUES (?, ?, ?, 1, ?) ON CONFLICT(id) DO NOTHING',
-        )
-          .bind(id, playlist.title, document, updatedAt)
-          .run()
-      : await env.DB.prepare(
-          'UPDATE playlists SET title = ?, document = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ?',
-        )
-          .bind(playlist.title, document, updatedAt, id, input.expectedRevision)
-          .run();
+  const previous = await env.DB.prepare(
+    'SELECT document, revision, deleted, tombstones FROM playlists WHERE id = ?',
+  )
+    .bind(id)
+    .first<{ document: string; revision: number; deleted: number; tombstones: string }>();
 
-  if (result.meta.changes !== 1) {
+  if ((previous?.revision ?? 0) !== input.expectedRevision || previous?.deleted) {
+    return Response.json({ error: 'Revision conflict' }, { status: 409 });
+  }
+
+  const before: Playlist | null = previous ? JSON.parse(previous.document).playlist : null;
+
+  const merged = applyPlaylistPatch(
+    {
+      id,
+      playlist: before,
+      revision: previous?.revision ?? 0,
+      tombstones: JSON.parse(previous?.tombstones ?? '[]'),
+    },
+    playlistPatch(before, input.archive.playlist),
+    input.archive.playlist.updatedAt,
+  );
+
+  const playlist = merged.playlist!;
+  const document = JSON.stringify({ ...input.archive, playlist });
+
+  // 条件更新在 D1 中原子执行，避免两台设备相互覆盖。
+  const statement =
+    input.expectedRevision === 0
+      ? env.DB.prepare(
+          'INSERT INTO playlists (id, title, document, revision, updated_at) VALUES (?, ?, ?, 1, ?) ON CONFLICT(id) DO NOTHING',
+        ).bind(id, playlist.title, document, updatedAt)
+      : env.DB.prepare(
+          'UPDATE playlists SET title = ?, document = ?, revision = revision + 1, updated_at = ?, tombstones = ? WHERE id = ? AND revision = ? AND deleted = 0',
+        ).bind(
+          playlist.title,
+          document,
+          updatedAt,
+          JSON.stringify(merged.tombstones),
+          id,
+          input.expectedRevision,
+        );
+
+  const [result] = await env.DB.batch([
+    statement,
+    env.DB.prepare(
+      'INSERT INTO sync_changes (playlist_id, mutation_id) SELECT ?, ? WHERE changes() = 1',
+    ).bind(id, crypto.randomUUID()),
+  ]);
+
+  if (result!.meta.changes !== 1) {
     return Response.json({ error: 'Revision conflict' }, { status: 409 });
   }
 

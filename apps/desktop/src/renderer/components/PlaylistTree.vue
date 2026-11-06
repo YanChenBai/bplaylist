@@ -2,16 +2,22 @@
 import { displayTitle, formatTime, canMovePlaylistNode } from '@bplaylist/shared';
 import type { PlaylistNode, DropPosition } from '@bplaylist/shared';
 import ActionButton from '@bplaylist/ui/ui/ActionButton.vue';
-import { GripVertical, Check, ChevronRight, Folder } from '@lucide/vue';
+import { GripVertical, Check, ChevronRight, Folder, Plus } from '@lucide/vue';
 import { cn } from 'cn';
 import { computed, ref } from 'vue';
 
 import { useWorkspace } from '../stores/workspace.ts';
 
-const props = defineProps<{ parentId: string | null; depth?: number; draggingId: string | null }>();
+const props = defineProps<{
+  parentId: string | null;
+  depth?: number;
+  draggingId: string | null;
+  visibleIds?: Set<string>;
+}>();
 
 const emit = defineEmits<{
   play: [id: string];
+  add: [parentId: string];
   context: [node: PlaylistNode, x: number, y: number];
   dragStart: [id: string];
   dragEnd: [];
@@ -88,7 +94,11 @@ function drop(event: DragEvent, node: PlaylistNode) {
 }
 
 const nodes = computed(
-  () => workspace.state?.playlist.nodes.filter(node => node.parentId === props.parentId) ?? [],
+  () =>
+    workspace.state?.playlist.nodes.filter(
+      node =>
+        node.parentId === props.parentId && (!props.visibleIds || props.visibleIds.has(node.id)),
+    ) ?? [],
 );
 
 function sourceLabel(url: string) {
@@ -161,13 +171,13 @@ function toggle(id: string) {
         <ActionButton
           v-if="node.kind === 'group'"
           :aria-label="`${collapsed.has(node.id) ? '展开' : '折叠'} ${node.title}`"
-          :aria-expanded="!collapsed.has(node.id)"
+          :aria-expanded="Boolean(visibleIds) || !collapsed.has(node.id)"
           class="p-1"
           @click="toggle(node.id)"
           ><ChevronRight
             :size="13"
             class="transition-transform duration-120 ease-out motion-reduce:transition-none"
-            :class="collapsed.has(node.id) ? '' : 'rotate-90'"
+            :class="!visibleIds && collapsed.has(node.id) ? '' : 'rotate-90'"
         /></ActionButton>
         <span v-else class="text-dim w-4 shrink-0 text-center text-[10px] tabular-nums"
           ><Check
@@ -226,6 +236,19 @@ function toggle(id: string) {
             </span>
           </span>
         </button>
+        <ActionButton
+          v-if="node.kind === 'group'"
+          :aria-label="`添加视频到 ${node.title}`"
+          title="添加到分组"
+          :disabled="workspace.busy"
+          class="shrink-0 p-1.5"
+          @click.stop="
+            collapsed.delete(node.id);
+            emit('add', node.id);
+          "
+        >
+          <Plus :size="13" />
+        </ActionButton>
       </div>
       <Transition
         enter-active-class="transition-[grid-template-rows,opacity] duration-160 ease-out motion-reduce:transition-none"
@@ -235,11 +258,13 @@ function toggle(id: string) {
         leave-from-class="grid-rows-[1fr] opacity-100"
         leave-to-class="grid-rows-[0fr] opacity-0"
       >
-        <div v-if="node.kind === 'group' && !collapsed.has(node.id)" class="grid">
+        <div v-if="node.kind === 'group' && (visibleIds || !collapsed.has(node.id))" class="grid">
           <div class="min-h-0 overflow-hidden">
             <PlaylistTree
               :parent-id="node.id"
               :depth="(depth ?? 0) + 1"
+              :visible-ids="visibleIds"
+              @add="emit('add', $event)"
               @play="emit('play', $event)"
               @context="(node, x, y) => emit('context', node, x, y)"
               :dragging-id="draggingId"

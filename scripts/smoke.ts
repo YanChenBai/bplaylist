@@ -356,7 +356,10 @@ try {
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '通过 UI 创建的分组', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '添加视频', exact: true }).click();
+  await page.getByRole('button', { name: '添加视频到 通过 UI 创建的分组', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: '所属分组' })).toContainText(
+    '通过 UI 创建的分组',
+  );
 
   const fixedRegions = await page.getByRole('dialog').evaluate(dialog => {
     dialog.style.maxHeight = '500px';
@@ -413,11 +416,21 @@ try {
   await expect(page.getByLabel('开始时间', { exact: true })).toHaveValue('21:06');
   await page.getByLabel('开始时间', { exact: true }).fill('00:05');
   await page.getByLabel('结束时间（留空播到结尾）').fill('00:15');
-  await page.getByRole('combobox', { name: '所属分组' }).click();
-  await page.getByRole('option', { name: '通过 UI 创建的分组', exact: true }).click();
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.getByRole('button', { name: '播放 UI 新建片段', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '拖拽 UI 新建片段', exact: true })).toBeEnabled();
+
+  for (const query of ['UI 新建片段', '原始视频标题', '基础', 'BV1GJ411x7h7']) {
+    await page.getByRole('searchbox', { name: '搜索播放列表' }).fill(query);
+    await expect(page.getByRole('button', { name: '播放 UI 新建片段', exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '通过 UI 创建的分组', exact: true }),
+    ).toBeVisible();
+  }
+
+  await page.getByRole('searchbox', { name: '搜索播放列表' }).fill('不存在的搜索结果');
+  await expect(page.getByText('没有匹配的条目', { exact: true })).toBeVisible();
+  await page.getByRole('searchbox', { name: '搜索播放列表' }).fill('');
   await page
     .getByRole('button', { name: '拖拽 UI 新建片段', exact: true })
     .dragTo(page.locator('[data-node-id="A"]'), { targetPosition: { x: 100, y: 42 } });

@@ -5,7 +5,7 @@ import { computed } from 'vue';
 
 import { rpc } from '../rpc.ts';
 import { useWorkspace } from '../stores/workspace.ts';
-const props = defineProps<{ node?: PlaylistNode; kind: 'video' | 'group' }>();
+const props = defineProps<{ node?: PlaylistNode; kind: 'video' | 'group'; parentId?: string }>();
 const emit = defineEmits<{ close: [] }>();
 const workspace = useWorkspace();
 
@@ -34,6 +34,7 @@ function saveNodes(nodes: PlaylistNode[]) {
   <SharedItemEditor
     :kind="kind"
     :node="node"
+    :parent-id="parentId"
     :snapshot="workspace.state?.snapshot"
     :groups="groups"
     :busy="workspace.busy"

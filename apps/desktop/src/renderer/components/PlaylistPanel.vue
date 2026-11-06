@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { movePlaylistNode } from '@bplaylist/shared';
 import type { PlaylistNode, DropPosition } from '@bplaylist/shared';
+import { searchPlaylist } from '@bplaylist/shared/search';
 import ActionButton from '@bplaylist/ui/ui/ActionButton.vue';
 import ModalDialog from '@bplaylist/ui/ui/ModalDialog.vue';
 import SelectField from '@bplaylist/ui/ui/SelectField.vue';
 import TextField from '@bplaylist/ui/ui/TextField.vue';
 import { FolderPlus, ListVideo, SkipBack, SkipForward, Plus } from '@lucide/vue';
-import { ref, useId } from 'vue';
+import { computed, ref, useId, watch } from 'vue';
 
 import { rpc } from '../rpc.ts';
 import { useWorkspace } from '../stores/workspace.ts';
@@ -17,7 +18,24 @@ import PlaylistTree from './PlaylistTree.vue';
 
 const workspace = useWorkspace();
 const api = { rpc };
-const editor = ref<{ kind: 'video' | 'group'; node?: PlaylistNode } | null>(null);
+
+const editor = ref<{ kind: 'video' | 'group'; node?: PlaylistNode; parentId?: string } | null>(
+  null,
+);
+
+const search = ref('');
+
+const visibleIds = computed(() =>
+  searchPlaylist(workspace.state?.playlist.nodes ?? [], search.value),
+);
+
+watch(
+  () => workspace.state?.playlist.id,
+  () => {
+    search.value = '';
+    editor.value = null;
+  },
+);
 const nameDialog = ref<'create' | 'rename' | null>(null);
 const name = ref('');
 const removeId = ref<string | null>(null);
@@ -182,8 +200,21 @@ async function saveName() {
       </div>
     </div>
     <div class="min-h-0 flex-1 overflow-auto px-3 pb-4">
+      <div class="mb-2">
+        <TextField
+          v-model="search"
+          label="搜索播放列表"
+          placeholder="搜索标题、别名、分集、链接…"
+          type="search"
+        />
+      </div>
+      <p v-if="visibleIds?.size === 0" class="text-dim py-6 text-center text-[11px]">
+        没有匹配的条目
+      </p>
       <PlaylistTree
         :parent-id="null"
+        :visible-ids="visibleIds"
+        @add="editor = { kind: 'video', parentId: $event }"
         @play="play"
         @context="openContext"
         :dragging-id="draggingId"
@@ -215,7 +246,13 @@ async function saveName() {
       @remove="removeContext"
       @close="context = null"
     />
-    <ItemEditor v-if="editor" :kind="editor.kind" :node="editor.node" @close="editor = null" />
+    <ItemEditor
+      v-if="editor"
+      :kind="editor.kind"
+      :node="editor.node"
+      :parent-id="editor.parentId"
+      @close="editor = null"
+    />
     <ModalDialog
       v-if="nameDialog"
       :title="nameDialog === 'create' ? '新建播放列表' : '重命名播放列表'"

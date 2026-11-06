@@ -13,6 +13,11 @@ export function openLibrary(path: string) {
     CREATE TABLE IF NOT EXISTS playlists (id TEXT PRIMARY KEY NOT NULL, document TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);`);
   const db = drizzle({ client: sqlite });
+  const listeners = new Set<() => void>();
+
+  function structure(playlist: Playlist | undefined) {
+    return playlist ? JSON.stringify([playlist.title, playlist.nodes]) : null;
+  }
 
   const library = {
     list(): Playlist[] {
@@ -28,13 +33,37 @@ export function openLibrary(path: string) {
     },
     save(playlist: Playlist) {
       const value = playlistSchema.parse(playlist);
+      const changed = structure(library.get(value.id)) !== structure(value);
       db.insert(playlists)
         .values({ id: value.id, document: JSON.stringify(value) })
         .onConflictDoUpdate({ target: playlists.id, set: { document: JSON.stringify(value) } })
         .run();
+
+      if (changed) {
+        listeners.forEach(listener => listener());
+      }
     },
     remove(id: string) {
       db.delete(playlists).where(eq(playlists.id, id)).run();
+      listeners.forEach(listener => listener());
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    transaction(operation: () => void) {
+      sqlite.exec('BEGIN IMMEDIATE');
+
+      try {
+        operation();
+        sqlite.exec('COMMIT');
+      } catch (error) {
+        sqlite.exec('ROLLBACK');
+        throw error;
+      }
     },
     getSetting(key: string): string | null {
       return db.select().from(settings).where(eq(settings.key, key)).get()?.value ?? null;

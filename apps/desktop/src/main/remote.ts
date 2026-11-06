@@ -1,29 +1,48 @@
-import { archiveSchema, remoteConfigSchema } from '@bplaylist/shared';
-import type { Playlist } from '@bplaylist/shared';
-import { safeStorage } from 'electron';
-import { z } from 'zod';
+import { createHash, randomUUID } from 'node:crypto';
 
+import { remoteConfigSchema } from '@bplaylist/shared';
+import { syncPreferencesSchema } from '@bplaylist/shared/sync';
+import type { SyncPreferences } from '@bplaylist/shared/sync';
+import { SyncClient, SyncScheduler } from '@bplaylist/shared/sync-client';
+import type { SyncStatus } from '@bplaylist/shared/sync-client';
+import { safeStorage } from 'electron';
+import type { z } from 'zod';
+
+import type { PlaybackController } from './player/controller.ts';
 import type { Library } from './storage/database.ts';
 
-const remoteListSchema = z.array(
-  z.object({
-    id: z.string(),
-    title: z.string(),
-    revision: z.number().int(),
-    updatedAt: z.string(),
-  }),
-);
-
-const remoteDocumentSchema = z.object({ archive: archiveSchema, revision: z.number().int() });
-
 export class RemoteLibrary {
-  constructor(private library: Library) {}
+  private client?: SyncClient;
+  private scheduler?: SyncScheduler;
+  private unsubscribe: () => void;
+  private applying = false;
+
+  constructor(
+    private library: Library,
+    private player: PlaybackController,
+  ) {
+    this.unsubscribe = library.subscribe(() => {
+      if (!this.applying) {
+        this.scheduler?.changed();
+      }
+    });
+  }
 
   settings() {
     return {
       endpoint: this.library.getSetting('remoteEndpoint') ?? '',
       configured: Boolean(this.library.getSetting('remoteToken')),
+      ...this.preferences(),
+      status:
+        this.client?.status ??
+        ({ phase: 'unconfigured', lastSyncedAt: null, error: null } as SyncStatus),
     };
+  }
+
+  private preferences(): SyncPreferences {
+    return syncPreferencesSchema.parse(
+      JSON.parse(this.library.getSetting('syncPreferences') ?? '{}'),
+    );
   }
 
   configure(input: z.infer<typeof remoteConfigSchema>) {
@@ -38,75 +57,87 @@ export class RemoteLibrary {
       'remoteToken',
       safeStorage.encryptString(config.token).toString('base64'),
     );
+    this.start();
     return this.settings();
   }
 
-  private async request(path: string, init?: RequestInit) {
+  updatePreferences(input: SyncPreferences) {
+    this.library.setSetting('syncPreferences', JSON.stringify(syncPreferencesSchema.parse(input)));
+    this.scheduler?.stop();
+    this.scheduler?.start(false);
+    return this.settings();
+  }
+
+  start() {
+    this.scheduler?.stop();
+    this.client?.stop();
     const endpoint = this.library.getSetting('remoteEndpoint');
     const encrypted = this.library.getSetting('remoteToken');
 
     if (!endpoint || !encrypted) {
-      throw new Error('请先设置 Worker 地址和访问令牌');
+      return;
     }
 
     const token = safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
+    const key = `sync:v2:${createHash('sha256').update(`${endpoint}\n${token}`).digest('hex')}`;
+    this.client = new SyncClient(
+      {
+        list: () => this.library.list(),
+        load: () => JSON.parse(this.library.getSetting(key) ?? 'null'),
+        commit: (checkpoint, updates) => {
+          this.applying = true;
 
-    const response = await fetch(`${endpoint}${path}`, {
-      ...init,
-      redirect: 'error',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+          try {
+            this.library.transaction(() => {
+              for (const update of updates) {
+                this.player.applySync(update.id, update.playlist);
+              }
+
+              this.library.setSetting(key, JSON.stringify(checkpoint));
+            });
+          } finally {
+            this.applying = false;
+          }
+        },
       },
-      signal: AbortSignal.timeout(20000),
-    });
+      async (path, mutation) => {
+        const response = await fetch(`${endpoint}${path}`, {
+          method: mutation ? 'POST' : 'GET',
+          redirect: 'error',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          ...(mutation ? { body: JSON.stringify(mutation) } : {}),
+          signal: AbortSignal.timeout(20000),
+        });
 
-    if (response.status === 409) {
-      throw new Error('云端列表已有更新，请先下载云端版本；本地修改仍已保存，可先导出备份');
-    }
+        if (!response.ok) {
+          throw new Error(`同步失败（HTTP ${response.status}）`);
+        }
 
-    if (!response.ok) {
-      throw new Error(`远程操作失败（HTTP ${response.status}）`);
-    }
-
-    return response.json() as Promise<unknown>;
-  }
-
-  async list() {
-    return remoteListSchema.parse(await this.request('/playlists'));
-  }
-
-  private revisionKey(id: string) {
-    return `revision:${this.library.getSetting('remoteEndpoint')}:${id}`;
-  }
-
-  async pull(id: string): Promise<Playlist> {
-    const remote = remoteDocumentSchema.parse(
-      await this.request(`/playlists/${encodeURIComponent(id)}`),
+        return response.json();
+      },
+      randomUUID,
     );
-
-    if (remote.archive.playlist.id !== id) {
-      throw new Error('云端返回了不匹配的播放列表');
-    }
-
-    this.library.setSetting(this.revisionKey(id), String(remote.revision));
-    return remote.archive.playlist;
+    this.scheduler = new SyncScheduler(this.client, () => this.preferences());
+    this.scheduler.start();
   }
 
-  async push(playlist: Playlist) {
-    const revision = Number(this.library.getSetting(this.revisionKey(playlist.id)) ?? 0);
+  wake() {
+    this.scheduler?.wake();
+  }
 
-    const result = z.object({ revision: z.number().int() }).parse(
-      await this.request(`/playlists/${encodeURIComponent(playlist.id)}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          expectedRevision: revision,
-          archive: { format: 'bplaylist', version: 1, playlist },
-        }),
-      }),
-    );
+  async sync() {
+    if (!this.scheduler) {
+      throw new Error('请先设置 Worker 地址和访问令牌');
+    }
 
-    this.library.setSetting(this.revisionKey(playlist.id), String(result.revision));
-    return result;
+    this.player.persist();
+    await this.scheduler.now();
+    return this.settings();
+  }
+
+  dispose() {
+    this.scheduler?.stop();
+    this.client?.stop();
+    this.unsubscribe();
   }
 }

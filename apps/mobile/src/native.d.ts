@@ -21,6 +21,8 @@ declare namespace com.bplaylist.mobile {
   class MobileHost {
     static initialize(activity: android.app.Activity): string;
     static call(method: string, payload: string): string;
+    static cloudConfig(): string;
+    static saveCloudConfig(value: string): void;
     static setScript(source: string): void;
     static createBrowser(activity: android.app.Activity): android.webkit.WebView;
     static releaseBrowser(): void;

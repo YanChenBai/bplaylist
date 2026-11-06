@@ -113,6 +113,7 @@ export function displayTitle(node: PlaylistNode): string {
 }
 
 export const progressSchema = z.object({
+  sessionStartedAt: z.string().datetime().optional(),
   segmentIndex: z.number().int().nonnegative().optional(),
   position: seconds,
   duration: seconds,

@@ -26,6 +26,7 @@ pub struct Core {
     awaiting: bool,
     tracking: bool,
     revision: u64,
+    session_started_at: String,
 }
 
 impl Core {
@@ -55,6 +56,7 @@ impl Core {
             awaiting: false,
             tracking: false,
             revision: 0,
+            session_started_at: timestamp(),
         };
         let lists = core.list()?;
 
@@ -180,6 +182,22 @@ impl Core {
 
     pub fn dispatch(&mut self, method: &str, input: Value) -> CoreResult<Value> {
         match method {
+            "syncDocuments" => {
+                let documents = self
+                    .list()?
+                    .iter()
+                    .map(|list| self.document(model::text(&list["id"])?))
+                    .collect::<CoreResult<Vec<_>>>()?;
+                Ok(json!(documents))
+            }
+            "syncCheckpoint" => {
+                let key = model::text(&input)?;
+                if !key.starts_with("sync:v2:") {
+                    return Err("同步存储键无效".into());
+                }
+                Ok(json!(self.setting(key)))
+            }
+            "syncCommit" => self.sync_commit(input),
             "state" => self.state(),
             "list" => Ok(json!(self.list()?)),
             "groups" => Ok(json!(
@@ -297,6 +315,7 @@ impl Core {
                     return Err("视频不存在".into());
                 }
                 self.playing = Some(self.selected.clone());
+                self.session_started_at = timestamp();
                 self.item = Some(id.clone());
                 self.segment = if document["progress"][&id]["completed"] == true {
                     0
@@ -315,10 +334,14 @@ impl Core {
                 self.state()
             }
             "resume" | "pause" => {
+                if method == "resume" {
+                    self.session_started_at = timestamp();
+                }
                 self.pending = Some(json!({"action":method}));
                 Ok(Value::Null)
             }
             "seek" => {
+                self.session_started_at = timestamp();
                 let position = input
                     .as_f64()
                     .filter(|v| v.is_finite() && *v >= 0.0)
@@ -342,6 +365,90 @@ impl Core {
             }
             _ => Err("接口不存在".into()),
         }
+    }
+
+    fn sync_commit(&mut self, input: Value) -> CoreResult<Value> {
+        let key = model::text(&input["key"])?;
+        if !key.starts_with("sync:v2:") {
+            return Err("同步存储键无效".into());
+        }
+        let mut updates = input["updates"].as_array().ok_or("同步更新无效")?.clone();
+        let mut stop_playing = false;
+
+        for update in &mut updates {
+            let id = model::text(&update["id"])?.to_owned();
+            let document = &mut update["playlist"];
+            if document.is_null() {
+                stop_playing |= self.playing.as_deref() == Some(&id);
+                continue;
+            }
+            if document["id"] != id {
+                return Err("同步列表 ID 不匹配".into());
+            }
+
+            if self.playing.as_deref() == Some(&id) && self.tracking {
+                let current = self.document(&id)?;
+                let item_id = self.item.as_deref().unwrap_or_default();
+                let before = current["nodes"]
+                    .as_array()
+                    .and_then(|nodes| nodes.iter().find(|node| node["id"] == item_id));
+                let after = document["nodes"]
+                    .as_array()
+                    .and_then(|nodes| nodes.iter().find(|node| node["id"] == item_id));
+                let same_source = before.zip(after).is_some_and(|(a, b)| {
+                    ["url", "start", "end", "continuation"]
+                        .iter()
+                        .all(|field| a[field] == b[field])
+                });
+
+                if same_source {
+                    document["activeItemId"] = current["activeItemId"].clone();
+                    if !current["progress"][item_id].is_null() {
+                        document["progress"][item_id] = current["progress"][item_id].clone();
+                    }
+                } else {
+                    stop_playing = true;
+                }
+            }
+            model::validate(document)?;
+        }
+
+        let transaction = self.db.transaction().map_err(|error| error.to_string())?;
+        for update in &updates {
+            let id = model::text(&update["id"])?;
+            if update["playlist"].is_null() {
+                transaction.execute("DELETE FROM playlists WHERE id=?1", [id])
+            } else {
+                transaction.execute("INSERT INTO playlists(id,document) VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET document=excluded.document",
+                    params![id, update["playlist"].to_string()])
+            }.map_err(|error| error.to_string())?;
+        }
+        transaction
+            .execute(
+                "INSERT OR REPLACE INTO settings(key,value) VALUES(?1,?2)",
+                params![key, input["checkpoint"].to_string()],
+            )
+            .map_err(|error| error.to_string())?;
+        transaction.commit().map_err(|error| error.to_string())?;
+
+        if stop_playing {
+            self.playing = None;
+            self.item = None;
+            self.tracking = false;
+            self.awaiting = false;
+            self.pending = Some(json!({"action":"pause"}));
+        }
+        if self.document(&self.selected).is_err() {
+            self.selected = match self.list()?.first() {
+                Some(list) => model::text(&list["id"])?.to_owned(),
+                None => model::text(&self.create("我的播放列表")?["id"])?.to_owned(),
+            };
+            self.set_setting("selected", &self.selected)?;
+        }
+        if !updates.is_empty() {
+            self.revision += 1;
+        }
+        Ok(Value::Null)
     }
 
     fn playing_document(&self) -> CoreResult<Value> {
@@ -398,6 +505,7 @@ impl Core {
             return Ok(());
         }
         self.item = queue[next as usize].as_str().map(str::to_owned);
+        self.session_started_at = timestamp();
         self.segment = 0;
 
         self.queue_navigation(false)
@@ -450,6 +558,7 @@ impl Core {
         let completed = ended && self.segment + 1 >= segments.len();
 
         document["progress"][&id] = json!({
+            "sessionStartedAt": self.session_started_at,
             "segmentIndex": self.segment,
             "position": position,
             "duration": snapshot["duration"].as_f64().unwrap_or(0.0),
@@ -520,5 +629,50 @@ pub extern "system" fn Java_com_bplaylist_mobile_NativeCore_call(
     match env.new_string(output) {
         Ok(s) => s.into_raw(),
         Err(_) => std::ptr::null_mut(),
+    }
+}
+
+#[cfg(test)]
+mod sync_tests {
+    use super::*;
+
+    #[test]
+    fn sync_should_keep_remote_ids_and_selected_playlist() {
+        let mut core = Core::open(":memory:").expect("open test database");
+        let selected = core.selected.clone();
+        let remote = json!({"version":1,"id":"remote","title":"云端列表","nodes":[],"activeItemId":null,"progress":{},"updatedAt":timestamp()});
+        core.dispatch("syncCommit", json!({"key":"sync:v2:test","checkpoint":{"cursor":1},"updates":[{"id":"remote","playlist":remote}]})).expect("commit sync");
+        assert_eq!(core.selected, selected);
+        assert_eq!(
+            core.document("remote").expect("remote playlist")["id"],
+            "remote"
+        );
+        assert_eq!(
+            core.dispatch("syncCheckpoint", json!("sync:v2:test"))
+                .expect("checkpoint"),
+            "{\"cursor\":1}"
+        );
+    }
+
+    #[test]
+    fn invalid_sync_should_not_partially_save_documents_or_cursor() {
+        let mut core = Core::open(":memory:").expect("open test database");
+        let remote = json!({"version":1,"id":"remote","title":"云端列表","nodes":[],"activeItemId":null,"progress":{},"updatedAt":timestamp()});
+        let result = core.dispatch("syncCommit", json!({"key":"sync:v2:test","checkpoint":{"cursor":2},"updates":[{"id":"remote","playlist":remote},{"id":"other","playlist":{"id":"wrong"}}]}));
+        assert!(result.is_err());
+        assert!(core.document("remote").is_err());
+        assert_eq!(core.setting("sync:v2:test"), None);
+    }
+
+    #[test]
+    fn sync_deletion_should_stop_playback_and_keep_valid_selection() {
+        let mut core = Core::open(":memory:").expect("open test database");
+        let id = core.selected.clone();
+        core.playing = Some(id.clone());
+        core.tracking = true;
+        core.dispatch("syncCommit", json!({"key":"sync:v2:test","checkpoint":{"cursor":3},"updates":[{"id":id,"playlist":null}]})).expect("delete synced playlist");
+        assert!(core.playing.is_none());
+        assert_ne!(core.selected, id);
+        assert!(core.document(&core.selected).is_ok());
     }
 }

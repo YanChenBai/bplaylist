@@ -19,6 +19,7 @@ import TextField from './ui/TextField.vue';
 
 const props = defineProps<{
   node?: PlaylistNode;
+  parentId?: string;
   kind: 'video' | 'group';
   snapshot?: PlayerSnapshot;
   prefill?: boolean;
@@ -56,7 +57,7 @@ const end = ref(
   props.node?.kind === 'video' && props.node.end !== null ? String(props.node.end) : '',
 );
 
-const parentId = ref(props.node?.parentId ?? '');
+const parentId = ref(props.node?.parentId ?? props.parentId ?? '');
 
 const parts = computed(() => {
   if (resolvedParts.value.some(part => sameSource(part.url, url.value))) {

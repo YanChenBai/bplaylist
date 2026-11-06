@@ -7,10 +7,11 @@ import {
   parseTime,
   parseVideoLink,
 } from '@bplaylist/shared';
+import { searchPlaylist } from '@bplaylist/shared/search';
 import { action, alert, confirm, prompt, Application } from '@nativescript/core';
 import { computed, ref, shallowRef } from 'nativescript-vue';
 
-import { cloud } from './cloud.ts';
+import { createCloud } from './cloud.ts';
 import { openPlaylistFile, savePlaylistFile } from './files.ts';
 import { call, connection, initialize, nativeHost } from './host.ts';
 import type { MobileState } from './host.ts';
@@ -21,13 +22,19 @@ export function useWorkspace() {
   const collapsed = shallowRef(false);
   const immersive = shallowRef(false);
   const collapsedGroups = ref(new Set<string>());
+  const search = ref('');
   const snapshot = shallowRef({ ...emptySnapshot });
   const playlist = computed(() => state.value?.playlist);
   const theme = computed(() => state.value?.theme ?? 'dark');
+  const cloud = createCloud(refresh);
 
   function refresh() {
     try {
       const next = call('state');
+
+      if (state.value?.playlist.id !== next.playlist.id) {
+        search.value = '';
+      }
 
       if (
         !state.value ||
@@ -40,6 +47,7 @@ export function useWorkspace() {
       }
 
       snapshot.value = { ...emptySnapshot, ...JSON.parse(nativeHost().snapshot()) };
+      cloud.observe();
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : String(cause);
     }
@@ -79,8 +87,14 @@ export function useWorkspace() {
       flattenPlaylist(document.nodes).map((node, index) => [node.id, index + 1]),
     );
 
+    const visible = searchPlaylist(document.nodes, search.value);
+
     function visit(parentId: string | null, depth: number) {
       for (const node of document!.nodes.filter(node => node.parentId === parentId)) {
+        if (visible && !visible.has(node.id)) {
+          continue;
+        }
+
         const group = node.kind === 'group';
         result.push({
           node,
@@ -91,10 +105,10 @@ export function useWorkspace() {
           active:
             state.value?.playingPlaylistId === document!.id &&
             state.value.playingItemId === node.id,
-          collapsed: collapsedGroups.value.has(node.id),
+          collapsed: !visible && collapsedGroups.value.has(node.id),
         });
 
-        if (group && !collapsedGroups.value.has(node.id)) {
+        if (group && (visible || !collapsedGroups.value.has(node.id))) {
           visit(node.id, depth + 1);
         }
       }
@@ -211,8 +225,7 @@ export function useWorkspace() {
       重命名播放列表: renamePlaylist,
       导入播放列表: importPlaylist,
       导出播放列表: exportPlaylist,
-      云端导入导出: () =>
-        playlist.value && cloud(playlist.value.id, archive => perform('import', archive)),
+      云端同步: cloud.settings,
       删除播放列表: deletePlaylist,
     };
 
@@ -402,6 +415,7 @@ export function useWorkspace() {
     theme,
     snapshot,
     rows,
+    search,
     refresh,
     perform,
     activate,
@@ -412,9 +426,11 @@ export function useWorkspace() {
     itemMenu,
     save,
     toggleImmersive,
+    stop: () => cloud.stop(),
     start() {
       try {
         state.value = initialize();
+        cloud.start();
       } catch (cause) {
         error.value = String(cause);
       }

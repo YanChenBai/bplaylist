@@ -8,6 +8,7 @@ import {
   remoteConfigSchema,
   videoUrl,
 } from '@bplaylist/shared';
+import { syncPreferencesSchema } from '@bplaylist/shared/sync';
 import { ORPCError, os } from '@orpc/server';
 import { dialog } from 'electron';
 import type { BrowserWindow } from 'electron';
@@ -162,16 +163,11 @@ export function createRouter(
       configure: procedure
         .input(remoteConfigSchema)
         .handler(({ input }) => remote.configure(input)),
-      list: procedure.handler(() => remote.list()),
-      push: procedure.handler(() => {
-        player.persist();
-        return remote.push(player.selectedPlaylist);
-      }),
-      pull: procedure.input(z.string().min(1).max(100)).handler(async ({ input }) => {
-        const document = await remote.pull(input);
-        await player.replace(document);
-        return player.state();
-      }),
+      preferences: procedure
+        .input(syncPreferencesSchema)
+        .handler(({ input }) => remote.updatePreferences(input)),
+      sync: procedure.handler(() => remote.sync()),
+      wake: procedure.handler(() => remote.wake()),
     },
   };
 }

@@ -32,7 +32,8 @@ async function start() {
   mkdirSync(app.getPath('userData'), { recursive: true });
   const library = openLibrary(join(app.getPath('userData'), 'bplaylist.sqlite'));
   const player = new PlaybackController(library);
-  const remote = new RemoteLibrary(library);
+  const remote = new RemoteLibrary(library, player);
+  remote.start();
   const browser = new BrowserServer(library, createBrowserService(library, player));
   await browser.start(
     process.env.BPLAYLIST_BRIDGE_PORT ? Number(process.env.BPLAYLIST_BRIDGE_PORT) : undefined,
@@ -71,6 +72,7 @@ async function start() {
 
     window.setAspectRatio(16 / 9);
     mainWindow = window;
+    window.on('focus', () => remote.wake());
     chrome.setImmersive(false);
 
     const registerShortcuts = (contents: WebContents) => {
@@ -147,6 +149,7 @@ async function start() {
   }
 
   dispose = () => {
+    remote.dispose();
     void browser.close();
     rpc.dispose();
     player.dispose();

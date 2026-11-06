@@ -52,6 +52,17 @@ export const useWorkspace = defineStore('workspace', () => {
 
   useIntervalFn(refresh, 750, { immediateCallback: true });
 
+  watch(
+    () => state.value?.revision,
+    (revision, previous) => {
+      if (!busy.value && previous !== undefined && revision !== previous) {
+        void library.refetch().catch(error => {
+          toast.error(error instanceof Error ? error.message : '刷新播放列表失败');
+        });
+      }
+    },
+  );
+
   async function perform(operation: () => Promise<unknown>, success?: string) {
     if (busy.value) {
       return false;

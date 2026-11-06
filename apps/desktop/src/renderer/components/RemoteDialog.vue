@@ -1,24 +1,33 @@
 <script setup lang="ts">
+import type { SyncPreferences } from '@bplaylist/shared/sync';
 import ActionButton from '@bplaylist/ui/ui/ActionButton.vue';
 import ModalDialog from '@bplaylist/ui/ui/ModalDialog.vue';
 import TextField from '@bplaylist/ui/ui/TextField.vue';
-import { Cloud, Download, RefreshCw, Upload } from '@lucide/vue';
+import { RefreshCw } from '@lucide/vue';
+import { useIntervalFn } from '@vueuse/core';
 import { onMounted, ref, useId } from 'vue';
 import { toast } from 'vue-sonner';
 
 import { rpc } from '../rpc.ts';
 import { useWorkspace } from '../stores/workspace.ts';
 
-const formId = useId();
 const emit = defineEmits<{ close: [] }>();
+const formId = useId();
 const workspace = useWorkspace();
-const api = { rpc };
 const endpoint = ref('');
 const token = ref('');
-const configured = ref(false);
-const records = ref<{ id: string; title: string; revision: number; updatedAt: string }[]>([]);
-const downloaded = ref<string | null>(null);
+const settings = ref<Awaited<ReturnType<typeof rpc.remote.settings>>>();
+const automatic = ref(true);
+const intervalMinutes = ref<SyncPreferences['intervalMinutes']>(5);
 const loading = ref(false);
+
+const labels = {
+  unconfigured: '尚未连接',
+  idle: '已同步',
+  syncing: '同步中',
+  offline: '离线',
+  error: '同步失败',
+};
 
 async function run(operation: () => Promise<void>) {
   loading.value = true;
@@ -34,55 +43,56 @@ async function run(operation: () => Promise<void>) {
 
 onMounted(() =>
   run(async () => {
-    const settings = await rpc.remote.settings();
-    endpoint.value = settings.endpoint;
-    configured.value = settings.configured;
-
-    if (settings.configured) {
-      records.value = await rpc.remote.list();
-    }
+    settings.value = await rpc.remote.settings();
+    endpoint.value = settings.value.endpoint;
+    automatic.value = settings.value.automatic;
+    intervalMinutes.value = settings.value.intervalMinutes;
   }),
 );
 
+useIntervalFn(async () => {
+  if (!loading.value) {
+    try {
+      settings.value = await rpc.remote.settings();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error), { id: 'sync-settings' });
+    }
+  }
+}, 2000);
+
 function configure() {
   return run(async () => {
-    await rpc.remote.configure({ endpoint: endpoint.value, token: token.value });
+    settings.value = await rpc.remote.configure({ endpoint: endpoint.value, token: token.value });
     token.value = '';
-    configured.value = true;
-    records.value = await rpc.remote.list();
     toast.success('已连接云端');
   });
 }
 
-function upload() {
+function preferences() {
   return run(async () => {
-    await rpc.remote.push();
-    records.value = await rpc.remote.list();
-    toast.success('播放列表与进度已上传');
+    settings.value = await rpc.remote.preferences({
+      automatic: automatic.value,
+      intervalMinutes: intervalMinutes.value,
+    });
   });
 }
 
-function download(id: string) {
-  if (downloaded.value !== id) {
-    downloaded.value = id;
-    return;
-  }
-
+function sync() {
   return run(async () => {
-    const result = await workspace.perform(() => rpc.remote.pull(id), '已下载列表与进度');
+    const success = await workspace.perform(() => rpc.remote.sync(), '所有播放列表与进度已同步');
 
-    if (result) {
-      emit('close');
+    if (success) {
+      settings.value = await rpc.remote.settings();
     }
   });
 }
 </script>
 
 <template>
-  <ModalDialog title="Cloudflare D1 · 远程导入导出" @close="emit('close')">
+  <ModalDialog title="云端同步" @close="emit('close')">
     <form :id="formId" class="grid gap-4" @submit.prevent="configure">
       <p class="text-muted text-[11px] leading-6">
-        列表、分组、视频时间和列表进度一起同步。云端有新版本时会提示冲突，上传不会静默覆盖。
+        所有播放列表和进度在设备间同步。离线修改保存在本地，连接恢复后继续同步。
       </p>
       <TextField
         v-model="endpoint"
@@ -93,56 +103,57 @@ function download(id: string) {
         v-model="token"
         label="访问令牌（使用系统安全存储保存）"
         type="password"
-        :placeholder="configured ? '已配置；重新连接时填写新令牌' : '与 Worker 的 SYNC_TOKEN 相同'"
+        :placeholder="
+          settings?.configured ? '已配置；重新连接时填写新令牌' : '与 Worker 的 SYNC_TOKEN 相同'
+        "
       />
     </form>
-    <section v-if="configured" class="border-border mt-6 border-t pt-4">
-      <div class="mb-3 flex items-center justify-between">
-        <span class="text-muted flex items-center gap-2"><Cloud :size="14" /> 云端播放列表</span
-        ><ActionButton
-          aria-label="刷新云端列表"
+    <section v-if="settings?.configured" class="border-border mt-6 grid gap-4 border-t pt-4">
+      <label class="flex items-center justify-between gap-3">
+        <span>自动同步</span>
+        <input v-model="automatic" type="checkbox" :disabled="loading" @change="preferences" />
+      </label>
+      <label class="flex items-center justify-between gap-3">
+        <span>同步间隔</span>
+        <select
+          v-model="intervalMinutes"
+          class="bg-surface border-border rounded border px-2 py-1"
           :disabled="loading"
-          @click="
-            run(async () => {
-              records = await api.rpc.remote.list();
-            })
-          "
-          ><RefreshCw :size="13"
-        /></ActionButton>
-      </div>
-      <p v-if="!records.length" class="text-dim py-4 text-center">云端还没有播放列表</p>
-      <div
-        v-for="record in records"
-        :key="record.id"
-        class="border-border mb-2 rounded-md border p-3"
-      >
-        <div class="flex items-center justify-between gap-2">
-          <span class="truncate">{{ record.title }}</span
-          ><ActionButton :disabled="loading" @click="download(record.id)"
-            ><Download :size="13" />{{
-              downloaded === record.id ? '确认下载' : '下载'
-            }}</ActionButton
-          >
-        </div>
-        <p class="text-dim mt-1 text-[10px]">
-          v{{ record.revision }} · {{ new Date(record.updatedAt).toLocaleString() }}
+          @change="preferences"
+        >
+          <option :value="5">5 分钟</option>
+          <option :value="15">15 分钟</option>
+          <option :value="30">30 分钟</option>
+        </select>
+      </label>
+      <p class="text-muted text-[11px] leading-6">
+        列表编辑后等待 1 分钟批量同步，播放进度按所选间隔同步。关闭自动同步后，仍可随时手动同步。
+      </p>
+      <div class="text-muted text-[11px] leading-6" role="status" aria-live="polite">
+        <p>
+          {{
+            settings.status.phase === 'idle' && !settings.status.lastSyncedAt
+              ? '等待首次同步'
+              : labels[settings.status.phase]
+          }}
         </p>
-        <p v-if="downloaded === record.id" class="text-accent mt-2 text-[11px]">
-          将切换到云端列表，并替换同 ID 的本地列表及进度。需要时请先导出本地备份。
+        <p v-if="settings.status.lastSyncedAt">
+          上次成功：{{ new Date(settings.status.lastSyncedAt).toLocaleString() }}
         </p>
+        <p v-if="settings.status.error" class="text-accent">{{ settings.status.error }}</p>
       </div>
     </section>
-    <template #footer
-      ><ActionButton
-        v-if="configured"
-        :disabled="loading || workspace.busy"
-        class="text-[11px]"
-        @click="upload"
-        ><Upload :size="13" />上传当前列表</ActionButton
+    <template #footer>
+      <ActionButton
+        v-if="settings?.configured"
+        :disabled="loading || workspace.busy || settings.status.phase === 'syncing'"
+        @click="sync"
+      >
+        <RefreshCw :size="13" />立即同步 </ActionButton
       ><span v-else />
       <div class="flex items-center gap-2">
-        <ActionButton @click="emit('close')">关闭</ActionButton
-        ><button
+        <ActionButton @click="emit('close')">关闭</ActionButton>
+        <button
           type="submit"
           :form="formId"
           :disabled="loading || !token"
@@ -150,7 +161,7 @@ function download(id: string) {
         >
           保存并连接
         </button>
-      </div></template
-    >
+      </div>
+    </template>
   </ModalDialog>
 </template>

@@ -2,12 +2,14 @@
 import { movePlaylistNode } from '@bplaylist/shared';
 import type { PlaylistNode, DropPosition } from '@bplaylist/shared';
 import { searchPlaylist } from '@bplaylist/shared/search';
+import { theme } from '@bplaylist/ui/theme';
 import ActionButton from '@bplaylist/ui/ui/ActionButton.vue';
 import ModalDialog from '@bplaylist/ui/ui/ModalDialog.vue';
 import SelectField from '@bplaylist/ui/ui/SelectField.vue';
 import TextField from '@bplaylist/ui/ui/TextField.vue';
-import { FolderPlus, ListVideo, SkipBack, SkipForward, Plus } from '@lucide/vue';
-import { computed, ref, useId, watch } from 'vue';
+import { FolderPlus, ListVideo, SkipBack, SkipForward, Plus, Search } from '@lucide/vue';
+import { useScroll } from '@vueuse/core';
+import { computed, ref, useId, useTemplateRef, watch } from 'vue';
 
 import { rpc } from '../rpc.ts';
 import { useWorkspace } from '../stores/workspace.ts';
@@ -24,6 +26,8 @@ const editor = ref<{ kind: 'video' | 'group'; node?: PlaylistNode; parentId?: st
 );
 
 const search = ref('');
+const listContainer = useTemplateRef<HTMLElement>('listContainer');
+const { y: scrollTop } = useScroll(listContainer);
 
 const visibleIds = computed(() =>
   searchPlaylist(workspace.state?.playlist.nodes ?? [], search.value),
@@ -169,45 +173,66 @@ async function saveName() {
             name = '';
             nameDialog = 'create';
           "
-          ><Plus :size="14"
-        /></ActionButton>
+        >
+          <Plus :size="14" />
+        </ActionButton>
       </div>
     </div>
-    <div class="flex items-center justify-between px-3 py-1.5">
-      <span class="text-dim pl-px text-[10px] tracking-widest">播放顺序</span>
-      <div class="flex items-center gap-0.5">
+    <div
+      class="bg-panel relative z-10 flex shrink-0 items-center gap-2 px-3 py-1.5 transition-shadow duration-150 motion-reduce:transition-none"
+      :class="{
+        'shadow-[0_6px_12px_-6px_rgba(0,0,0,0.5)]': scrollTop > 0 && theme === 'dark',
+        'shadow-[0_3px_8px_-4px_rgba(0,0,0,0.12)]': scrollTop > 0 && theme === 'light',
+      }"
+    >
+      <TextField
+        v-model="search"
+        class="min-w-0 flex-1"
+        aria-label="搜索播放列表"
+        placeholder="搜索标题、别名…"
+        type="search"
+        compact
+        ><template #leading><Search :size="12" :stroke-width="1.7" /></template
+      ></TextField>
+      <div class="flex shrink-0 items-center gap-0.5">
         <ActionButton
           aria-label="上一项"
           title="上一项"
-          class="p-1.5"
+          class="h-7 w-7 p-0"
           :disabled="workspace.busy || workspace.currentIndex <= 0"
           @click="workspace.perform(() => api.rpc.step(-1))"
-          ><SkipBack :size="13"
-        /></ActionButton>
+        >
+          <SkipBack :size="13" />
+        </ActionButton>
         <ActionButton
           aria-label="下一项"
           title="下一项"
-          class="mr-1 p-1.5"
+          class="h-7 w-7 p-0"
           :disabled="workspace.busy || workspace.currentIndex >= workspace.queue.length - 1"
           @click="workspace.perform(() => api.rpc.step(1))"
-          ><SkipForward :size="13"
-        /></ActionButton>
-        <ActionButton aria-label="添加分组" title="添加分组" @click="editor = { kind: 'group' }"
-          ><FolderPlus :size="14" /></ActionButton
-        ><ActionButton aria-label="添加视频" @click="editor = { kind: 'video' }"
-          ><Plus :size="14"
-        /></ActionButton>
+        >
+          <SkipForward :size="13" />
+        </ActionButton>
+        <span class="bg-border/70 mx-1 h-3 w-px" aria-hidden="true" />
+        <ActionButton
+          aria-label="添加分组"
+          title="添加分组"
+          class="h-7 w-7 p-0"
+          @click="editor = { kind: 'group' }"
+        >
+          <FolderPlus :size="14" />
+        </ActionButton>
+        <ActionButton
+          aria-label="添加视频"
+          title="添加视频"
+          class="h-7 w-7 p-0"
+          @click="editor = { kind: 'video' }"
+        >
+          <Plus :size="14" />
+        </ActionButton>
       </div>
     </div>
-    <div class="min-h-0 flex-1 overflow-auto px-3 pb-4">
-      <div class="mb-2">
-        <TextField
-          v-model="search"
-          label="搜索播放列表"
-          placeholder="搜索标题、别名、分集、链接…"
-          type="search"
-        />
-      </div>
+    <div ref="listContainer" class="min-h-0 flex-1 overflow-auto px-3 pb-4">
       <p v-if="visibleIds?.size === 0" class="text-dim py-6 text-center text-[11px]">
         没有匹配的条目
       </p>
@@ -231,9 +256,9 @@ async function saveName() {
         <p class="text-dim text-[11px] leading-6">
           打开左侧视频，添加完整视频、分 P 或一段时间。也可以用分组整理你的播放顺序。
         </p>
-        <ActionButton class="border-border" @click="editor = { kind: 'video' }"
-          ><Plus :size="13" />添加第一个视频</ActionButton
-        >
+        <ActionButton class="border-border" @click="editor = { kind: 'video' }">
+          <Plus :size="13" />添加第一个视频
+        </ActionButton>
       </div>
     </div>
 
@@ -257,7 +282,8 @@ async function saveName() {
       v-if="nameDialog"
       :title="nameDialog === 'create' ? '新建播放列表' : '重命名播放列表'"
       @close="nameDialog = null"
-      ><form :id="nameFormId" class="grid gap-4" @submit.prevent="saveName">
+    >
+      <form :id="nameFormId" class="grid gap-4" @submit.prevent="saveName">
         <TextField v-model="name" label="列表名称" />
       </form>
       <template #footer
@@ -272,8 +298,8 @@ async function saveName() {
           >
             保存
           </button>
-        </div></template
-      >
+        </div>
+      </template>
     </ModalDialog>
     <ModalDialog v-if="removingPlaylist" title="删除播放列表" @close="removingPlaylist = null">
       <p class="text-muted leading-6">
@@ -299,20 +325,20 @@ async function saveName() {
         </div>
       </template>
     </ModalDialog>
-    <ModalDialog v-if="removeId" title="删除条目" @close="removeId = null"
-      ><p class="text-muted mb-5 leading-6">删除分组也会删除组内所有条目与进度。</p>
+    <ModalDialog v-if="removeId" title="删除条目" @close="removeId = null">
+      <p class="text-muted mb-5 leading-6">删除分组也会删除组内所有条目与进度。</p>
       <template #footer
         ><span />
         <div class="flex justify-end gap-2">
-          <ActionButton @click="removeId = null">取消</ActionButton
-          ><ActionButton
+          <ActionButton @click="removeId = null">取消</ActionButton>
+          <ActionButton
             class="border-border text-red-300"
             :disabled="workspace.busy"
             @click="remove"
-            >确认删除</ActionButton
-          >
-        </div></template
-      ></ModalDialog
-    >
+            >确认删除
+          </ActionButton>
+        </div>
+      </template>
+    </ModalDialog>
   </aside>
 </template>

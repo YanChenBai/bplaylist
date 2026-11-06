@@ -59,6 +59,20 @@ const end = ref(
 
 const parentId = ref(props.node?.parentId ?? props.parentId ?? '');
 
+const audioOffsetMs = ref(
+  String(props.node?.kind === 'video' ? (props.node.audioOffsetMs ?? 0) : 0),
+);
+
+function readAudioOffset() {
+  const value = Number(audioOffsetMs.value);
+
+  if (!Number.isInteger(value) || Math.abs(value) > 10000) {
+    throw new Error('声音偏移请输入 -10000 到 10000 之间的整数毫秒');
+  }
+
+  return value;
+}
+
 const parts = computed(() => {
   if (resolvedParts.value.some(part => sameSource(part.url, url.value))) {
     return resolvedParts.value;
@@ -185,6 +199,7 @@ async function save() {
             ...(acrossParts.value ? { continuation: continuation.value } : {}),
             start: parseTime(start.value || '0'),
             end: end.value.trim() ? parseTime(end.value) : null,
+            audioOffsetMs: readAudioOffset(),
           });
 
     if (!node.title) {
@@ -216,6 +231,15 @@ function updateContinuation() {
 }
 
 async function addParts() {
+  let offset: number;
+
+  try {
+    offset = readAudioOffset();
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : String(error));
+    return;
+  }
+
   const nodes: PlaylistNode[] = [];
   const groupId = draftId;
   nodes.push({
@@ -240,6 +264,7 @@ async function addParts() {
       url: videoUrl(part.url),
       start: 0,
       end: null,
+      audioOffsetMs: offset,
     });
   }
 
@@ -329,6 +354,20 @@ async function addParts() {
           @click="start = String(Math.floor(props.snapshot!.position))"
           >以当前播放时间作为起点</ActionButton
         >
+        <div class="grid gap-2">
+          <div class="flex items-end gap-2">
+            <TextField
+              v-model="audioOffsetMs"
+              label="声音偏移（毫秒）"
+              placeholder="0"
+              class="min-w-0 flex-1"
+            />
+            <ActionButton class="mb-1 shrink-0" @click="audioOffsetMs = '0'">重置</ActionButton>
+          </div>
+          <p class="text-dim text-[10px] leading-5">
+            正值让声音延后，负值让声音提前；0 不调整。范围 ±10000 ms，跨分集使用同一偏移。
+          </p>
+        </div>
       </template>
       <div class="text-muted grid gap-2">
         <span>所属分组</span

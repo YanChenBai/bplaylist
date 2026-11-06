@@ -362,6 +362,32 @@ describe('增量自动同步', () => {
     expect(a.documents.get(playlist.id)!.nodes[1]).toMatchObject({ start: 10, end: 50 });
   });
 
+  it('声音偏移通过真实 Worker 同步，重置和移除不会残留旧值', async () => {
+    const playlist = fixture();
+    const a = device([playlist]);
+    const b = device();
+    await a.client.sync();
+    await b.client.sync();
+
+    for (const offset of [-350, 600, 0]) {
+      Object.assign(a.documents.get(playlist.id)!.nodes[1]!, { audioOffsetMs: offset });
+      await a.client.sync();
+      await b.client.sync();
+      expect(b.documents.get(playlist.id)!.nodes[1]).toMatchObject({ audioOffsetMs: offset });
+    }
+
+    const local = a.documents.get(playlist.id)!;
+    const node = local.nodes[1]!;
+
+    if (node.kind === 'video') {
+      delete node.audioOffsetMs;
+    }
+
+    await a.client.sync();
+    await b.client.sync();
+    expect(b.documents.get(playlist.id)!.nodes[1]).not.toHaveProperty('audioOffsetMs');
+  });
+
   it('允许新播放会话回看，旧会话的后续上报不能抢回进度', () => {
     const playlist = fixture();
     playlist.progress.video = {

@@ -329,6 +329,11 @@ object MobileHost {
                 view.evaluateJavascript("document.querySelector('video')?.play()?.catch(()=>{})", null)
             }
             "pause" -> view.evaluateJavascript("document.querySelector('video')?.pause()", null)
+            "audioOffset" -> {
+                val url = JSONObject.quote(command.optString("url"))
+                val offset = command.optInt("audioOffsetMs", 0).coerceIn(-10000, 10000)
+                viewScript("window.__bplaylistRange = $url ? {...window.__bplaylistRange,url:$url,audioOffsetMs:$offset} : null")
+            }
             "seek" -> view.evaluateJavascript("(()=>{const v=document.querySelector('video');if(v)v.currentTime=${command.optDouble("position",0.0)}})()", null)
         }
     }
@@ -344,7 +349,9 @@ object MobileHost {
         }
         if (identity(snapshot.optString("url")) != identity(pending.optString("url"))) return
         val start = pending.optDouble("start",0.0)
-        val range = JSONObject().put("start",start).put("end",pending.opt("end"))
+        val range = JSONObject().put("url",pending.optString("url"))
+            .put("start",start).put("end",pending.opt("end"))
+            .put("audioOffsetMs",pending.optInt("audioOffsetMs",0))
         viewScript("""
             (()=>{const v=document.querySelector('video');if(!v)return;
             window.__bplaylistRange=$range;v.currentTime=$start;v.play().catch(()=>{});

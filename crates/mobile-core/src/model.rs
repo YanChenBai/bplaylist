@@ -100,6 +100,12 @@ pub fn validate(document: &Value) -> CoreResult<()> {
                     }
                 }
 
+                if let Some(offset) = node.get("audioOffsetMs") {
+                    if !offset.as_i64().is_some_and(|value| (-10000..=10000).contains(&value)) {
+                        return Err("声音偏移必须为 -10000 到 10000 之间的整数毫秒".into());
+                    }
+                }
+
                 let start = node["start"]
                     .as_f64()
                     .filter(|n| n.is_finite() && *n >= 0.0)

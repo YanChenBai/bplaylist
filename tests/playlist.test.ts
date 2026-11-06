@@ -28,6 +28,25 @@ const video = (id: string, parentId: string | null = null): VideoItem => ({
 });
 
 describe('播放列表与交换格式', () => {
+  it('声音偏移兼容旧数据，正负值和重置值可导入导出，并拒绝无效范围', () => {
+    const node = video('offset');
+    expect(itemSchema.parse(node).audioOffsetMs).toBeUndefined();
+
+    for (const offset of [-10000, -250, 0, 500, 10000]) {
+      const playlist = createPlaylist();
+      playlist.nodes = [{ ...node, audioOffsetMs: offset }];
+
+      const archive = archiveSchema.parse(
+        JSON.parse(JSON.stringify({ format: 'bplaylist', version: 1, playlist })),
+      );
+
+      expect(archive.playlist.nodes[0]).toMatchObject({ audioOffsetMs: offset });
+    }
+
+    for (const offset of [-10001, 10001, 0.5, NaN, Infinity, '100']) {
+      expect(itemSchema.safeParse({ ...node, audioOffsetMs: offset }).success).toBe(false);
+    }
+  });
   it('拖拽支持同级重排、进入分组和移出分组，并拒绝循环', () => {
     const nodes: PlaylistNode[] = [
       video('a'),

@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./audio-offset.js": "./src/audio-offset.js",
     "./*": "./src/*.ts"
   },
   "dependencies": {

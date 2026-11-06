@@ -9,6 +9,7 @@ interface PageBridge {
 }
 
 interface BiliPage extends Window {
+  __bplaylistAudioOffset?: { error: string };
   __bplaylistRange?: PlaybackRange | null;
   __bplaylist?: PageBridge;
   __INITIAL_STATE__?: {
@@ -214,6 +215,7 @@ export default function install() {
         available: Boolean(video && video.readyState >= 1),
         ...observed,
         webFullscreen: fullscreen(),
+        audioOffsetError: page.__bplaylistAudioOffset?.error || undefined,
       };
     },
     async command(command) {

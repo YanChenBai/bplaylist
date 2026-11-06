@@ -100,6 +100,7 @@
       seeking: video?.seeking ?? false,
       ended: video?.ended ?? false,
       webFullscreen: Boolean(document.querySelector('.bpx-state-web,.mode-webscreen')),
+      audioOffsetError: window.__bplaylistAudioOffset?.error || undefined,
     };
   }
 

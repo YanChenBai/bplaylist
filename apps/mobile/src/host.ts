@@ -1,7 +1,10 @@
 import type { Playlist, PlayerSnapshot } from '@bplaylist/shared';
+import audioOffsetScript from '@bplaylist/shared/audio-offset.js?raw';
 import { Application, ContentView } from '@nativescript/core';
 
 import playerScript from './player.js?raw';
+
+const injectedPlayerScript = `${audioOffsetScript}\n${playerScript}`;
 
 export interface MobileState {
   playlist: Playlist;
@@ -40,7 +43,7 @@ export function initialize() {
     ),
   );
 
-  nativeHost().setScript(playerScript);
+  nativeHost().setScript(injectedPlayerScript);
   return state;
 }
 
@@ -54,7 +57,7 @@ export class BilibiliView extends ContentView {
   createNativeView() {
     const activity = Application.android.foregroundActivity || Application.android.startActivity;
     nativeHost().initialize(activity);
-    nativeHost().setScript(playerScript);
+    nativeHost().setScript(injectedPlayerScript);
     return nativeHost().createBrowser(activity);
   }
 

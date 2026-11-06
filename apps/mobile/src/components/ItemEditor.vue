@@ -32,6 +32,7 @@ const draft = reactive(JSON.parse(JSON.stringify(props.item)) as VideoItem);
 const link = shallowRef(draft.url);
 const start = shallowRef(formatTime(draft.start));
 const end = shallowRef(draft.end === null ? '' : formatTime(draft.end));
+const audioOffsetMs = shallowRef(String(draft.audioOffsetMs ?? 0));
 const crossParts = shallowRef(Boolean(draft.continuation));
 const firstPart = shallowRef(draft.url);
 const lastPart = shallowRef(draft.continuation?.at(-1)?.url ?? '');
@@ -139,11 +140,18 @@ async function chooseGroup() {
 
 async function save() {
   try {
+    const offset = Number(audioOffsetMs.value);
+
+    if (!Number.isInteger(offset) || Math.abs(offset) > 10000) {
+      throw new Error('声音偏移请输入 -10000 到 10000 之间的整数毫秒');
+    }
+
     const item = {
       ...draft,
       url: parseVideoLink(firstPart.value || link.value).url,
       start: readTime(start.value)!,
       end: readTime(end.value, true),
+      audioOffsetMs: offset,
     };
 
     delete item.continuation;
@@ -259,6 +267,26 @@ async function save() {
           text="以当前播放时间作为起点"
           class="text-muted m-0 h-10 min-h-0 min-w-0 border-0 bg-transparent px-2.5 py-0 text-xs normal-case"
           @tap="start = formatTime(snapshot.position)"
+        />
+        <Label text="声音偏移（毫秒）" class="text-muted mt-3 mb-1.5 text-xs" />
+        <GridLayout columns="*,auto">
+          <TextField
+            v-model="audioOffsetMs"
+            hint="0"
+            autocorrect="false"
+            class="text-foreground bg-surface border-border placeholder:text-dim m-0 min-h-[42] rounded-[7] border px-3 py-2.5 text-xs"
+          />
+          <Button
+            col="1"
+            text="重置"
+            class="text-muted m-0 ml-2.5 h-[42] min-h-0 min-w-0 border-0 bg-transparent px-3 py-0 text-xs normal-case"
+            @tap="audioOffsetMs = '0'"
+          />
+        </GridLayout>
+        <Label
+          text="正值让声音延后，负值让声音提前；0 不调整。范围 ±10000 ms，跨分集使用同一偏移。"
+          textWrap="true"
+          class="text-dim mt-1.5 text-[length:11]"
         />
         <Label text="所属分组" class="text-muted mt-3 mb-1.5 text-xs" /><Button
           :text="groupLabel"

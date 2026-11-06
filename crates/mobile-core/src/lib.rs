@@ -351,7 +351,7 @@ impl Core {
             }
             "snapshot" => {
                 self.update_snapshot(input)?;
-                Ok(self.pending.take().unwrap_or(Value::Null))
+                Ok(self.pending.take().unwrap_or_else(|| self.audio_offset_command()))
             }
             "command" => Ok(self.pending.take().unwrap_or(Value::Null)),
             "setting" => {
@@ -455,6 +455,19 @@ impl Core {
         self.document(self.playing.as_deref().ok_or("尚未播放列表")?)
     }
 
+    fn audio_offset_command(&self) -> Value {
+        let document = self.playing_document().ok();
+        let item = document.as_ref()
+            .and_then(|doc| doc["nodes"].as_array())
+            .and_then(|nodes| nodes.iter().find(|node| node["id"].as_str() == self.item.as_deref()));
+        let segment = item.and_then(|node| model::segments(node).get(self.segment).map(|part| part.url.clone()));
+        json!({
+            "action": "audioOffset",
+            "url": segment.unwrap_or_default(),
+            "audioOffsetMs": item.and_then(|node| node["audioOffsetMs"].as_i64()).unwrap_or(0),
+        })
+    }
+
     fn queue_navigation(&mut self, resume: bool) -> CoreResult<()> {
         let mut document = self.playing_document()?;
         let id = self.item.as_deref().ok_or("尚未选择视频")?;
@@ -479,6 +492,7 @@ impl Core {
             "url": segment.url,
             "start": start,
             "end": segment.end,
+            "audioOffsetMs": item["audioOffsetMs"].as_i64().unwrap_or(0),
             "autoFullscreen": self.setting("autoFullscreen").as_deref() != Some("false"),
         }));
         self.awaiting = true;

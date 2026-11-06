@@ -69,6 +69,7 @@ export const itemSchema = z
     continuation: z.array(videoPartSchema).min(1).max(10000).optional(),
     start: seconds.default(0),
     end: seconds.nullable().default(null),
+    audioOffsetMs: z.number().int().min(-10000).max(10000).optional(),
   })
   .refine(
     value => value.continuation || value.end === null || value.end > value.start,
@@ -308,6 +309,7 @@ export const snapshotSchema = z.object({
   paused: z.boolean(),
   ended: z.boolean(),
   webFullscreen: z.boolean(),
+  audioOffsetError: z.string().optional(),
   parts: z.array(partSchema),
 });
 

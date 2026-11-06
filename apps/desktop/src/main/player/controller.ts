@@ -16,6 +16,7 @@ import type {
   PlayerSnapshot,
   VideoItem,
 } from '@bplaylist/shared';
+import audioOffsetScript from '@bplaylist/shared/audio-offset.js?raw';
 import type { WebContents } from 'electron';
 import { z } from 'zod';
 
@@ -72,7 +73,7 @@ export class PlaybackController {
       snapshot: this.snapshot,
       running: this.running,
       autoFullscreen: this.autoFullscreen,
-      error: this.error,
+      error: this.error ?? this.snapshot.audioOffsetError ?? null,
     };
   }
 
@@ -130,10 +131,16 @@ export class PlaybackController {
         ? this.segmentIndex
         : (this.playlist.progress[item?.id ?? '']?.segmentIndex ?? 0);
 
-    const range = item?.kind === 'video' ? (playbackSegments(item)[index] ?? null) : null;
+    const segment = item?.kind === 'video' ? playbackSegments(item)[index] : undefined;
+
+    const range =
+      segment && item?.kind === 'video'
+        ? { ...segment, audioOffsetMs: item.audioOffsetMs ?? 0 }
+        : null;
+
     return snapshotSchema.parse(
       await guest.executeJavaScript(
-        `window.__bplaylistRange = ${JSON.stringify(range)};\n${installScript}`,
+        `window.__bplaylistRange = ${JSON.stringify(range)};\n${audioOffsetScript}\n${installScript}`,
       ),
     );
   }

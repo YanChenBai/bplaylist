@@ -391,9 +391,9 @@ function editItem(value: VideoItem) {
             verticalAlignment="center"
           />
           <Label
-            v-if="error"
+            v-if="error || snapshot.audioOffsetError"
             row="4"
-            :text="error"
+            :text="error || snapshot.audioOffsetError"
             class="bg-border text-foreground p-2.5"
             textWrap="true"
             @tap="error = ''"

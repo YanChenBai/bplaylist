@@ -22,6 +22,7 @@ const nodeFields = z.enum([
   'continuation',
   'start',
   'end',
+  'audioOffsetMs',
 ]);
 
 export const playlistPatchSchema = z.object({
@@ -184,7 +185,7 @@ export function applyPlaylistPatch(
     for (const field of update.fields) {
       if (Object.hasOwn(update.value, field)) {
         value[field] = update.value[field as keyof typeof update.value];
-      } else if (field === 'continuation') {
+      } else if (field === 'continuation' || field === 'audioOffsetMs') {
         delete value[field];
       }
     }

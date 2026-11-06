@@ -16,6 +16,8 @@ export class RemoteLibrary {
   private scheduler?: SyncScheduler;
   private unsubscribe: () => void;
   private applying = false;
+  private generation = 0;
+  private disposed = false;
 
   constructor(
     private library: Library,
@@ -45,19 +47,25 @@ export class RemoteLibrary {
     );
   }
 
-  configure(input: z.infer<typeof remoteConfigSchema>) {
+  async configure(input: z.infer<typeof remoteConfigSchema>) {
     const config = remoteConfigSchema.parse(input);
+    const generation = ++this.generation;
 
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!(await safeStorage.isAsyncEncryptionAvailable())) {
       throw new Error('系统安全存储不可用，无法保存同步令牌');
     }
 
-    this.library.setSetting('remoteEndpoint', config.endpoint.replace(/\/$/, ''));
-    this.library.setSetting(
-      'remoteToken',
-      safeStorage.encryptString(config.token).toString('base64'),
-    );
-    this.start();
+    const encrypted = await safeStorage.encryptStringAsync(config.token);
+
+    if (this.disposed || generation !== this.generation) {
+      throw new Error('同步配置已更改');
+    }
+
+    this.library.transaction(() => {
+      this.library.setSetting('remoteEndpoint', config.endpoint.replace(/\/$/, ''));
+      this.library.setSetting('remoteToken', encrypted.toString('base64'));
+    });
+    await this.start();
     return this.settings();
   }
 
@@ -68,9 +76,15 @@ export class RemoteLibrary {
     return this.settings();
   }
 
-  start() {
+  async start() {
+    const generation = ++this.generation;
     this.scheduler?.stop();
     this.client?.stop();
+
+    if (this.disposed) {
+      return;
+    }
+
     const endpoint = this.library.getSetting('remoteEndpoint');
     const encrypted = this.library.getSetting('remoteToken');
 
@@ -78,7 +92,24 @@ export class RemoteLibrary {
       return;
     }
 
-    const token = safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
+    const { result: token, shouldReEncrypt } = await safeStorage.decryptStringAsync(
+      Buffer.from(encrypted, 'base64'),
+    );
+
+    if (this.disposed || generation !== this.generation) {
+      return;
+    }
+
+    if (shouldReEncrypt) {
+      const refreshed = await safeStorage.encryptStringAsync(token);
+
+      if (this.disposed || generation !== this.generation) {
+        return;
+      }
+
+      this.library.setSetting('remoteToken', refreshed.toString('base64'));
+    }
+
     const key = `sync:v2:${createHash('sha256').update(`${endpoint}\n${token}`).digest('hex')}`;
     this.client = new SyncClient(
       {
@@ -136,6 +167,8 @@ export class RemoteLibrary {
   }
 
   dispose() {
+    this.disposed = true;
+    this.generation++;
     this.scheduler?.stop();
     this.client?.stop();
     this.unsubscribe();

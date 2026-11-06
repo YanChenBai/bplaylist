@@ -33,7 +33,7 @@ async function start() {
   const library = openLibrary(join(app.getPath('userData'), 'bplaylist.sqlite'));
   const player = new PlaybackController(library);
   const remote = new RemoteLibrary(library, player);
-  remote.start();
+  await remote.start();
   const browser = new BrowserServer(library, createBrowserService(library, player));
   await browser.start(
     process.env.BPLAYLIST_BRIDGE_PORT ? Number(process.env.BPLAYLIST_BRIDGE_PORT) : undefined,
